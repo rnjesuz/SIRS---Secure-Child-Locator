@@ -4,7 +4,6 @@ static class PuppetMaster{
 	List<Beacon> beaconList();
 	
 	public PuppetMaster(){
-		SetUp();
 	}
 	
 	private void SetUp(){
@@ -20,4 +19,7 @@ static class PuppetMaster{
 		
 	}
 
+	public static void main(String[] args) {
+        SetUp();
+    }
 }
