@@ -10,12 +10,20 @@ class Server(){
 		
 	}
 
-	setIp(String ip){
+	private void SetIp(String ip){
 		this.ip=ip;
 	}
 	
-	SetPort(int port){
+	private void SetPort(int port){
 		this.port=port;
+	}
+	
+	private String GetIP(){
+		return ip;
+	}
+	
+	private int GetPort(){
+		return port;
 	}
 	
 	private Cicle(){
