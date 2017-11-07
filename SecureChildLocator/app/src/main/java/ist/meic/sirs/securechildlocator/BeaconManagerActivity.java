@@ -39,6 +39,9 @@ public class BeaconManagerActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_beacon_manager);
 
+        //TO TEST GPS
+        listItems.add("Beacon Test");
+
         list = (ListView) findViewById(R.id.list);
         idText = (EditText) findViewById(R.id.idText);
         passText = (EditText) findViewById(R.id.passText);
