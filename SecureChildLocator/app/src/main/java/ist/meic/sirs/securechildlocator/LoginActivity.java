@@ -21,6 +21,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.provider.ContactsContract;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.View.OnClickListener;
@@ -312,10 +313,12 @@ public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<
 
         private final String mEmail;
         private final String mPassword;
+        private final Client c;
 
         UserLoginTask(String email, String password) {
             mEmail = email;
             mPassword = password;
+            c = new Client();
         }
 
         @Override
@@ -324,20 +327,26 @@ public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<
 
             try {
                 // Simulate network access.
-                Thread.sleep(2000);
-            } catch (InterruptedException e) {
+                c.connectToServer();
+                c.login(mEmail, mPassword);
+            } catch (ConnectionFailedException e) {
+                Log.d("LOGIN", "Connection Failed");
+                return false;
+            } catch(IncorrectPasswordException e) {
+                Log.d("LOGIN", "Wrong Password");
                 return false;
             }
 
-            for (String credential : DUMMY_CREDENTIALS) {
+            /*for (String credential : DUMMY_CREDENTIALS) {
                 String[] pieces = credential.split(":");
                 if (pieces[0].equals(mEmail)) {
                     if(pieces[1].equals(mPassword))
                         return true;
                 }
-            }
+            }*/
+
             // TODO: register the new account here.
-            return false;
+            return true;
         }
 
         @Override

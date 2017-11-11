@@ -1,25 +1,9 @@
-static class PuppetMaster{
 
-	Server server;
-	List<Beacon> beaconList();
-	
-	public PuppetMaster(){
+public class PuppetMaster {
+	public static void main(String[] args) throws InterruptedException {
+		System.out.println("Starting server...");
+		Server server = new Server();
+		server.runServer();
+		System.out.println("Server Launched!");
 	}
-	
-	private void SetUp(){
-		
-		System.Out.println("Insert Server Port.");
-		int serverPort = Integer.ParseInt(Console.read());
-		server = new Server(new String(localhost), serverPort);
-		while(true){
-			System.Out.println("Insert new Beacon Port");
-			int beaconPort = Integer.parseInt(Console.read());
-			beaconList.add(new Beacon(new String("localhost"), beaconPort));
-		}
-		
-	}
-
-	public static void main(String[] args) {
-        SetUp();
-    }
 }

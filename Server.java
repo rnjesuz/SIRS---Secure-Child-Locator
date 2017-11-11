@@ -1,35 +1,50 @@
-class Server(){
+import java.io.IOException;
+import java.net.ServerSocket;
+import java.net.Socket;
 
-	private String ip;
-	private int port;
+public class Server {
 
-	public Server(String ip, int port){
-		setIP(ip);
-		setPort(port);
-		Cicle();
+	private final String ip = "192.168.1.6";
+	private final int port = 6667;
+	private ServerSocket welcomeSocket;
+
+
+	public Server(){
+	}
+	
+	public void runServer() {
+		System.out.println("Setting up server...");
+		setup();
+		listen();
+	}
+
+	private void setup() {
+		try {
+			welcomeSocket = new ServerSocket(port);
+
+			System.out.println("Server connected to " + ip + " listening at port " + port);
+		} catch (IOException e) {
+			System.out.println("Couldn't connect to port " + port);
+			e.printStackTrace();
+		}
+	}
+
+	private void listen() {
 		
-	}
+		Socket connectionSocket;
 
-	private void SetIp(String ip){
-		this.ip=ip;
+		while(true) {
+			try {
+				System.out.println("Server listening at port " + port);
+				connectionSocket = welcomeSocket.accept();
+				System.out.println("Attempted Connection...");
+				System.out.println("Launching thread to handle connection...");
+				(new ServerThread(connectionSocket)).start();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
 	}
-	
-	private void SetPort(int port){
-		this.port=port;
-	}
-	
-	private String GetIP(){
-		return ip;
-	}
-	
-	private int GetPort(){
-		return port;
-	}
-	
-	private Cicle(){
-	
-	}
-
-
-	
 }
+
+
