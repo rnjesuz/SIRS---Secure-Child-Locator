@@ -1,3 +1,4 @@
+import java.io.File;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -7,7 +8,6 @@ public class Server {
 	private final String ip = "192.168.1.6";
 	private final int port = 6667;
 	private ServerSocket welcomeSocket;
-
 
 	public Server(){
 	}
@@ -21,14 +21,19 @@ public class Server {
 	private void setup() {
 		try {
 			welcomeSocket = new ServerSocket(port);
-
 			System.out.println("Server connected to " + ip + " listening at port " + port);
+			
+			final String dir = System.getProperty("user.dir");
+			File file = new File(dir + "/database");
+			if(!file.exists()) {
+				file.mkdir();
+			}
 		} catch (IOException e) {
 			System.out.println("Couldn't connect to port " + port);
 			e.printStackTrace();
 		}
 	}
-
+	
 	private void listen() {
 		
 		Socket connectionSocket;
