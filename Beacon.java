@@ -114,9 +114,6 @@ class BeaconClass {
 	private void SignUp() {
 		System.out.println("Signing Up");
 		try {
-			/*socketOut.writeBytes("SignUp"+ '\n');
-			socketOut.writeBytes(getUsername());
-			socketOut.writeBytes(getPassword());*/
 			socketOut.writeBytes("BEACON_SIGNUP_" + getUsername() + "_" + getPassword() + '\n');
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -128,7 +125,8 @@ class BeaconClass {
 			System.out.println("Sending coords...");
 			try {
 				//TODO change to a proper coordinates system
-				socketOut.writeBytes("COORDS_" + 23 + '\n');
+				String istCoords = "38.736685, -9.138619";  // latitude/longitude of IST. to simulate real coordinates
+				socketOut.writeBytes("COORDS_" + istCoords + '\n');
 				
 				String received = socketIn.readLine();
 				System.out.println(received);

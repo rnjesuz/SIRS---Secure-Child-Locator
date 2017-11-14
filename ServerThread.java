@@ -14,6 +14,8 @@ public class ServerThread extends Thread{
 	private final String BCN_HM_PATH = "/database/beaconHashMap.dat";
 
 	private final String delim = "_";
+	
+	private String clientID;
 
 	public ServerThread(Socket s) {
 		socket = s;
@@ -107,6 +109,7 @@ public class ServerThread extends Thread{
 					//Check if password matches else wrong password
 					if(userHashMap.get(msg[2]).equals(msg[3])) {
 						System.out.println("Logged In");
+						clientID = msg[2];
 						msg_sent = "OK";
 						result = true;
 					} else {
@@ -125,6 +128,7 @@ public class ServerThread extends Thread{
 					userHashMap.put(msg[2], msg[3]);
 					saveStatus(userHashMap, USR_HM_PATH);
 					System.out.println("New account created");
+					clientID = msg[2];
 					msg_sent = "OK";
 					result = true;
 				} else  {
@@ -165,12 +169,14 @@ public class ServerThread extends Thread{
 					beaconHashMap.put(msg[2], msg[3]);
 					saveStatus(beaconHashMap, BCN_HM_PATH);
 					System.out.println("New account created");
+					clientID = msg[2];
 					msg_sent = "OK";
 					result = true;
 				} else  {
 					System.out.println("Beacon already registered, checking password...");
 					if(beaconHashMap.get(msg[2]).equals(msg[3])) {
 						System.out.println("Beacon logged in!");
+						clientID = msg[2];
 						msg_sent = "OK";
 						result = true;
 					} else System.out.println("Wrong Password!");
@@ -209,7 +215,21 @@ public class ServerThread extends Thread{
 				case "COORDS":
 					System.out.println("beacon sent " + msg[1] + " coordinates");
 					output.writeBytes("RECEIVED\n");
-				
+					
+					//create directory to store coords
+					File directory = new File("Coordinates");
+					if(! directory.exists())
+						directory.mkdir();
+					
+					//new file if one doesn't already exist
+					File newFile = new File("Coordinates" + File.separator + clientID + ".txt");
+					newFile.createNewFile();
+					//write to file
+					FileWriter fw = new FileWriter(newFile.getAbsoluteFile());
+					BufferedWriter bw = new BufferedWriter(fw);
+					bw.write(msg[1]);
+					bw.close();
+					
 				default:
 					break;
 				}
