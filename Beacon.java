@@ -44,10 +44,6 @@ class BeaconClass {
 		setPort(port);
 		setUsername(username);
 		setPassword(password);
-		
-		ConnectToServer();
-		SignUp();
-		ImAliveCicle();
 	}
 
 	//setters
@@ -85,11 +81,19 @@ class BeaconClass {
 	}
 	
 	//Startup functions
-	public void runBeacon() {
+	public void runBeacon(){
 		System.out.println("Setting up beacon...");
 		ConnectToServer();
+		
 		SignUp();
-		ImAliveCicle();
+		try{
+		String received = socketIn.readLine();
+		System.out.println(received);
+		if(received.equals("OK"))
+			ImAliveCicle();
+		} catch(IOException e){
+			e.printStackTrace();
+		}
 	}
 	
 	private void ConnectToServer(){
@@ -110,9 +114,10 @@ class BeaconClass {
 	private void SignUp() {
 		System.out.println("Signing Up");
 		try {
-			socketOut.writeBytes("SignUp"+ '\n');
+			/*socketOut.writeBytes("SignUp"+ '\n');
 			socketOut.writeBytes(getUsername());
-			socketOut.writeBytes(getPassword());
+			socketOut.writeBytes(getPassword());*/
+			socketOut.writeBytes("SIGNUP_" + getUsername() + "_" + getPassword() + '\n');
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -122,9 +127,11 @@ class BeaconClass {
 		while(true){
 			System.out.println("Sending coords...");
 			try {
-				socketOut.writeBytes("Coords" + '\n');
 				//TODO change to a proper coordinates system
-				socketOut.writeInt(23);
+				socketOut.writeBytes("COORDS_" + 23 + '\n');
+				
+				String received = socketIn.readLine();
+				System.out.println(received);
 				//sleep for 10 seconds
 				Thread.sleep(10000);
 			} catch (IOException e) {

@@ -36,32 +36,70 @@ public class ServerThread extends Thread{
 			input = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 			output = new DataOutputStream(socket.getOutputStream());
 		
-			System.out.println("Waiting for client response...");
+			while(true){
+				System.out.println("Waiting for client response...");
 
-			String msg_rcv = input.readLine();
-			System.out.println("Received: " + msg_rcv);
+				String msg_rcv = input.readLine();
+				System.out.println("Received: " + msg_rcv);
 
-			String[] msg = msg_rcv.split("_");
-			//DEFAULT RESPONSE
-			String msg_sent = "NO";
-			
-			if(msg[0].equals("LOGIN")) {
-				if(appHashMap.containsKey(msg[1])) {
-					if(appHashMap.get(msg[1]).equals(msg[2])) {
-						System.out.println("Logged In");
+				String[] msg = msg_rcv.split("_");
+				//DEFAULT RESPONSE
+				String msg_sent = "NO";
+				
+				switch(msg[0]){
+					case "LOGIN":
+						if(msg.length != 3){
+							msg_sent = "INCORRECT PARAMETERS";
+							break; 
+						}
+						if(appHashMap.containsKey(msg[1])) {
+							if(appHashMap.get(msg[1]).equals(msg[2])) {
+								System.out.println("Logged In");
+								msg_sent = "OK";
+							}
+						} else 
+							msg_sent = "NOT REGISTERED";
+						break;
+						
+					case "SIGNUP":
+						if(msg.length != 3){
+							msg_sent = "INCORRECT PARAMETERS";
+							break; 
+						}
+						appHashMap.put(msg[1], msg[2]);
+						saveStatus(appHashMap, APP_HT_PATH);
 						msg_sent = "OK";
-					} 
-				} else {
-					//SIGN UP
-					System.out.println("NEW ACCOUNT: Signed up");
-					appHashMap.put(msg[1], msg[2]);
-					saveStatus(appHashMap, APP_HT_PATH);
-					msg_sent = "OK";
+						System.out.println("NEW ACCOUNT: Signed up");
+						break;
+					
+					case "COORDS":
+						//TODO
+						int coords = Integer.parseInt(msg[1]);
+						System.out.println("Coords received: " + coords);
+						msg_sent = "UPDATED";
+						break;
+						
+					default: 
+						break;
 				}
-			} 
+				/*if(msg[0].equals("LOGIN")) {
+					if(appHashMap.containsKey(msg[1])) {
+						if(appHashMap.get(msg[1]).equals(msg[2])) {
+							System.out.println("Logged In");
+							msg_sent = "OK";
+						} 
+					} else {
+						//SIGN UP
+						System.out.println("NEW ACCOUNT: Signed up");
+						appHashMap.put(msg[1], msg[2]);
+						saveStatus(appHashMap, APP_HT_PATH);
+						msg_sent = "OK";
+					}
+				}*/ 
 
-			output.writeBytes(msg_sent + '\n');
-			System.out.println("Sent: " + msg_sent);
+				output.writeBytes(msg_sent + '\n');
+				System.out.println("Sent: " + msg_sent);
+			}
 
 		} catch (IOException | NullPointerException e) {
 			System.out.println("Client Disconnected...");
