@@ -7,9 +7,13 @@ public class ServerThread extends Thread{
 	private Socket socket;
 	private BufferedReader input;
 	private DataOutputStream output;
-	
-	private HashMap<String, String> appHashMap = new HashMap<String, String>();
-	private final String APP_HT_PATH = "/database/appHashMap.dat";
+
+	private HashMap<String, String> userHashMap = new HashMap<String, String>();
+	private HashMap<String, String> beaconHashMap = new HashMap<String, String>();
+	private final String USR_HM_PATH = "/database/userHashMap.dat";
+	private final String BCN_HM_PATH = "/database/beaconHashMap.dat";
+
+	private final String delim = "_";
 
 	public ServerThread(Socket s) {
 		socket = s;
@@ -17,95 +21,226 @@ public class ServerThread extends Thread{
 
 	@Override
 	public void run() {
-		System.out.println("In server thread...");
-		prepareDatabase();
-		handleConnection();
-	}
-	
-	private void prepareDatabase(){
-		final String dir = System.getProperty("user.dir");
-		System.out.println(dir + APP_HT_PATH);
-		File file = new File(dir + APP_HT_PATH);
-		if(file.exists()) {
-			appHashMap = (HashMap) loadStatus(APP_HT_PATH);
-		} 
-	}
+		try{
+			prepareCommunication();
 
-	private void handleConnection() {
-		try {
-			input = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-			output = new DataOutputStream(socket.getOutputStream());
-		
-			while(true){
-				System.out.println("Waiting for client response...");
+			String msg_rcv = input.readLine();
+			String msg_sent = "NO";
+			String[] msg = msg_rcv.split(delim);
 
-				String msg_rcv = input.readLine();
-				System.out.println("Received: " + msg_rcv);
+			switch(msg[0]){
 
-				String[] msg = msg_rcv.split("_");
-				//DEFAULT RESPONSE
-				String msg_sent = "NO";
-				
-				switch(msg[0]){
-					case "LOGIN":
-						if(msg.length != 3){
-							msg_sent = "INCORRECT PARAMETERS";
-							break; 
-						}
-						if(appHashMap.containsKey(msg[1])) {
-							if(appHashMap.get(msg[1]).equals(msg[2])) {
-								System.out.println("Logged In");
-								msg_sent = "OK";
-							}
-						} else 
-							msg_sent = "NOT REGISTERED";
-						break;
-						
-					case "SIGNUP":
-						if(msg.length != 3){
-							msg_sent = "INCORRECT PARAMETERS";
-							break; 
-						}
-						appHashMap.put(msg[1], msg[2]);
-						saveStatus(appHashMap, APP_HT_PATH);
-						msg_sent = "OK";
-						System.out.println("NEW ACCOUNT: Signed up");
-						break;
-					
-					case "COORDS":
-						//TODO
-						int coords = Integer.parseInt(msg[1]);
-						System.out.println("Coords received: " + coords);
-						msg_sent = "UPDATED";
-						break;
-						
-					default: 
-						break;
-				}
-				/*if(msg[0].equals("LOGIN")) {
-					if(appHashMap.containsKey(msg[1])) {
-						if(appHashMap.get(msg[1]).equals(msg[2])) {
-							System.out.println("Logged In");
-							msg_sent = "OK";
-						} 
-					} else {
-						//SIGN UP
-						System.out.println("NEW ACCOUNT: Signed up");
-						appHashMap.put(msg[1], msg[2]);
-						saveStatus(appHashMap, APP_HT_PATH);
-						msg_sent = "OK";
+			case "APP":
+				if(msg.length == 4){
+					if(appInitialConnection(msg)) {
+						System.out.println("Connection with App established!");
+						appListen();
 					}
-				}*/ 
+				} else {
+					output.writeBytes(msg_sent + '\n');
+					System.out.println("Access Denied!");
+					System.out.println("Sent: " + msg_sent);
+				}
+				break;
 
+			case "BEACON":
+				if(msg.length == 4){
+					if(beaconInitialConnection(msg)) {
+						System.out.println("Connection with Beacon established!");
+						beaconListen();
+					}
+				} else {
+					output.writeBytes(msg_sent + '\n');
+					System.out.println("Access Denied!");
+					System.out.println("Sent: " + msg_sent);
+				}
+				break;
+
+			default:
 				output.writeBytes(msg_sent + '\n');
 				System.out.println("Sent: " + msg_sent);
+				break;
 			}
+		} catch (IOException e) {
+			System.out.println("Connection to Client Failed.");
+			e.printStackTrace();
+			return;
+		}		
+	}
 
-		} catch (IOException | NullPointerException e) {
-			System.out.println("Client Disconnected...");
+	//Loads hashmaps if they exists, sets up input and output channels with server
+	private void prepareCommunication() throws IOException{
+		final String dir = System.getProperty("user.dir");
+		System.out.println("Loading hashmaps...");
+
+		File file = new File(dir + USR_HM_PATH);
+		if(file.exists()) {
+			userHashMap = (HashMap) loadStatus(USR_HM_PATH);
+			System.out.println("User hashmap loaded!");
+		} 
+
+		file = new File(dir + BCN_HM_PATH);
+		if(file.exists()) {
+			beaconHashMap = (HashMap) loadStatus(BCN_HM_PATH);
+			System.out.println("Beacon hashmap loaded!");
+		}
+		System.out.println("Loading done!");
+
+		System.out.println("Creating Communication Channels...");
+		input = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+		output = new DataOutputStream(socket.getOutputStream());
+		System.out.println("Channels Created!");
+	}
+
+	//Verify if sign up or login operation
+	//return true if connection established
+	//return false if connection denied
+	private boolean appInitialConnection(String[] msg) {
+		try{
+			String msg_sent = "NO";
+			boolean result = false;
+
+			switch(msg[1]){
+			case "LOGIN":
+				//Check if user signed up previously else not registered
+				if(userHashMap.containsKey(msg[2])) {
+					//Check if password matches else wrong password
+					if(userHashMap.get(msg[2]).equals(msg[3])) {
+						System.out.println("Logged In");
+						msg_sent = "OK";
+						result = true;
+					} else {
+						System.out.println("Wrong Password");
+						msg_sent = "WRONG PASS";
+					}
+				} else  {
+					System.out.println("User not registered");
+					msg_sent = "NOT REGISTERED";
+				}
+				break;
+
+			case "SIGNUP":
+				//Check if user is not registered else send Account already exists
+				if(!userHashMap.containsKey(msg[2])) {
+					userHashMap.put(msg[2], msg[3]);
+					saveStatus(userHashMap, USR_HM_PATH);
+					System.out.println("New account created");
+					msg_sent = "OK";
+					result = true;
+				} else  {
+					System.out.println("User already registered");
+					msg_sent = "ACCOUNT EXISTS";
+				}
+				break;
+
+			default:
+				output.writeBytes(msg_sent + '\n');
+				System.out.println("Sent: " + msg_sent);
+				break;
+			}
+			
+			output.writeBytes(msg_sent + '\n');
+			return result;
+			
+		} catch(IOException e) {
+			e.printStackTrace();
+			return false;
 		}
 	}
-	
+
+	//Verify if beacon is signing up or logging in
+	//returns true if connection established
+	//returns false if access denied or problem with connection
+	private boolean beaconInitialConnection(String[] msg) {
+		try{
+			String msg_sent = "NO";
+			boolean result = false;
+
+			switch(msg[1]){		
+
+			case "SIGNUP":
+				//Check if Beacon is not registered else check if password matches up
+				//if Password matches, allow access, else deny it
+				if(!beaconHashMap.containsKey(msg[2])) {
+					beaconHashMap.put(msg[2], msg[3]);
+					saveStatus(beaconHashMap, BCN_HM_PATH);
+					System.out.println("New account created");
+					msg_sent = "OK";
+					result = true;
+				} else  {
+					System.out.println("Beacon already registered, checking password...");
+					if(beaconHashMap.get(msg[2]).equals(msg[3])) {
+						System.out.println("Beacon logged in!");
+						msg_sent = "OK";
+						result = true;
+					} else System.out.println("Wrong Password!");
+				}
+				break;
+
+			default:
+				output.writeBytes(msg_sent + '\n');
+				System.out.println("Sent: " + msg_sent);
+				break;
+			}
+			
+			output.writeBytes(msg_sent + '\n');
+			return result;
+			
+		} catch(IOException e) {
+			e.printStackTrace();
+			return false;
+		}
+	}
+
+	//TODO
+	//Listens to beacon after Initial Connection
+	private void beaconListen() {
+
+		try {
+
+			System.out.println("Listening to Beacon...");
+
+			while(true) {
+				String msg_rcv = input.readLine();
+				String[] msg = msg_rcv.split(delim);
+
+				switch(msg[0]) {
+				
+				case "COORDS":
+					System.out.println("beacon sent " + msg[1] + " coordinates");
+					output.writeBytes("RECEIVED\n");
+				
+				default:
+					break;
+				}
+			}	
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
+	//TODO
+	//Listens to app after initial connection
+	private void appListen() {
+		try {
+
+			System.out.println("Listening to App...");
+
+			while(true) {
+				String msg_rcv = input.readLine();
+				String[] msg = msg_rcv.split(delim);
+
+				switch(msg[0]) {
+				default:
+					break;
+				}
+			}	
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
+	/*FUNCTIONS TO HANDLE STORE AND LOAD HASHMAPS*/
 	private Object loadStatus(String name){
 		Object result = null;
 		try {
@@ -120,7 +255,7 @@ public class ServerThread extends Thread{
 		}
 		return result;
 	}
-	
+
 	private void saveStatus(Serializable object, String name){
 		try {
 			final String dir = System.getProperty("user.dir");

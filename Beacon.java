@@ -117,7 +117,7 @@ class BeaconClass {
 			/*socketOut.writeBytes("SignUp"+ '\n');
 			socketOut.writeBytes(getUsername());
 			socketOut.writeBytes(getPassword());*/
-			socketOut.writeBytes("SIGNUP_" + getUsername() + "_" + getPassword() + '\n');
+			socketOut.writeBytes("BEACON_SIGNUP_" + getUsername() + "_" + getPassword() + '\n');
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
