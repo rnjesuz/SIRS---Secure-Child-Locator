@@ -33,6 +33,9 @@ public class App {
 			String pass;
 			String conf;
 			
+			String beaconID;
+			String beaconPass;
+			
 			String msg;
 
 			switch(option){
@@ -49,6 +52,48 @@ public class App {
 					msg = input.readLine();
 					if(msg.equals("OK")) {
 						System.out.println("Logged in!");
+						System.out.println("Chose Option number: ");
+						System.out.println("(1)Add Beacon");
+						System.out.println("(2)Request Coordinates from Beacon");
+						option = br.readLine();
+						
+						switch(option) {
+						case "1":
+							System.out.println("Beacon ID:");
+							beaconID = br.readLine();
+							System.out.println("Beacon Password:");
+							beaconPass = br.readLine();
+							output.writeBytes("ADD" + delim + beaconID + delim + beaconPass + '\n');
+							
+							msg = input.readLine();
+							
+							if(msg.equals("OK")) {
+								System.out.println("Beacon successfuly added!");
+								break;
+							}
+							
+							if(msg.equals("ALREADY ADDED")) {
+								System.out.println("Beacon already added to list...");
+								break;
+							}
+							
+							if(msg.equals("DOESNT EXIST")) {
+								System.out.println("Beacon doesn't exist...");
+								break;
+							}
+							
+							if(msg.equals("NO")) {
+								System.out.println("Access Denied.");
+								break;
+							}
+							
+							break;
+						case "2":
+							break;
+						default:
+							break;
+						}
+						
 						break;
 					}
 					

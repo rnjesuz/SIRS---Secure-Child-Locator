@@ -14,14 +14,15 @@ public class ServerThread extends Thread{
 	//map os every beaconID and it's key
 	private HashMap<String, String> beaconHashMap = new HashMap<String, String>();
 	//map of every appID and the beacons they have acess to
-	private HashMap<String, ArrayList<String>> AppBeacons = new HashMap<String, ArrayList<String>>();
+	private HashMap<String, ArrayList<String>> appBeacons = new HashMap<String, ArrayList<String>>();
 	
 	private final String USR_HM_PATH = "/database/userHashMap.dat";
 	private final String BCN_HM_PATH = "/database/beaconHashMap.dat";
+	private final String APP_BCN_PATH = "/database/appBeacons.dat";
 
 	private final String delim = "_";
 	
-	//ID of the connectd client (either app or beacon)
+	//ID of the connected client (either app or beacon)
 	private String clientID;
 
 	public ServerThread(Socket s) {
@@ -93,6 +94,13 @@ public class ServerThread extends Thread{
 			beaconHashMap = (HashMap) loadStatus(BCN_HM_PATH);
 			System.out.println("Beacon hashmap loaded!");
 		}
+		
+		file = new File(dir + APP_BCN_PATH);
+		if(file.exists()) {
+			beaconHashMap = (HashMap) loadStatus(APP_BCN_PATH);
+			System.out.println("App's beacons hashmap loaded!");
+		}
+		
 		System.out.println("Loading done!");
 
 		System.out.println("Creating Communication Channels...");
@@ -108,6 +116,7 @@ public class ServerThread extends Thread{
 		try{
 			String msg_sent = "NO";
 			boolean result = false;
+			userHashMap = (HashMap) loadStatus(USR_HM_PATH);
 
 			switch(msg[1]){
 			case "LOGIN":
@@ -166,7 +175,8 @@ public class ServerThread extends Thread{
 		try{
 			String msg_sent = "NO";
 			boolean result = false;
-
+			beaconHashMap = (HashMap) loadStatus(BCN_HM_PATH);
+				
 			switch(msg[1]){		
 
 			case "SIGNUP":
@@ -257,15 +267,20 @@ public class ServerThread extends Thread{
 			while(true) {
 				String msg_rcv = input.readLine();
 				String[] msg = msg_rcv.split(delim);
-				String msg_sent;
+				String msg_sent = "NO";
+				
+				beaconHashMap = (HashMap) loadStatus(BCN_HM_PATH);
+				appBeacons = (HashMap) loadStatus(APP_BCN_PATH);
+				userHashMap = (HashMap) loadStatus(USR_HM_PATH);
 
 				switch(msg[0]) {
 					
-					//case to add a new beacon
+					//case to add a new beacon				
 					case "ADD":
 					//ADD_BEACONID_BEACONPASS
-					System.out.println("App tryed to add beacon: " + msg[1]);
-					msg_sent = "Incorrect Credentials";
+					System.out.println("App trying to add beacon: " + msg[1]);
+					
+					
 					
 					//checks for existence of beacon
 					if(beaconHashMap.containsKey(msg[1])) {
@@ -273,30 +288,35 @@ public class ServerThread extends Thread{
 						if(beaconHashMap.get(msg[1]).equals(msg[2])){
 							//check if  client exist in map
 							//if not, adds it associated to a List containing the beaconID
-							if(! AppBeacons.containsKey(clientID)){
+							if(! appBeacons.containsKey(clientID)){
 								ArrayList<String> newList =  new ArrayList<String>();
 								newList.add(msg[1]);
-								AppBeacons.put( clientID, newList );
-								msg_sent = "Added";
+								appBeacons.put( clientID, newList );
+								saveStatus(appBeacons, APP_BCN_PATH);
+								msg_sent = "OK";
 								System.out.println("Beacon added to client");
 							}
 							else{
 								//client has a map. Check if beacon is already added
 								
 								//get list of beacons
-								ArrayList<String> beacons = AppBeacons.get(clientID);
+								ArrayList<String> beacons = appBeacons.get(clientID);
 								//is beacon added?
 								if(beacons.contains(msg[1]))
-									msg_sent = "Beacon was already previously added";
+									msg_sent = "ALREADY ADDED";
 								else{
 									//no...so, we add
 									beacons.add(msg[1]);
-									AppBeacons.put(clientID, beacons);
-									msg_sent = "Added";
+									appBeacons.put(clientID, beacons);
+									saveStatus(appBeacons, APP_BCN_PATH);
+									msg_sent = "OK";
 									System.out.println("Beacon added to client");
 								}
 							}				
 						}
+					} else {
+						System.out.println("Beacon doesn't exist");
+						msg_sent="DOESNT EXIST";
 					}
 					output.writeBytes(msg_sent + '\n');
 					break;
@@ -304,10 +324,10 @@ public class ServerThread extends Thread{
 					//case to request coords from a beacon
 					case "REQ":
 					//REQ_BEACONID
-						System.out.println("App tryed to request coords from beacon: " + msg[1]);
-						msg_sent = "Beacon not added";
+						System.out.println("App tried to request coords from beacon: " + msg[1]);
+	
 						//check if beacon was added
-						ArrayList<String> beacons = AppBeacons.get(clientID);
+						ArrayList<String> beacons = appBeacons.get(clientID);
 						if(beacons.contains(msg[1])){
 							//beacon was added
 							//read from file 
@@ -318,6 +338,8 @@ public class ServerThread extends Thread{
 						break;
 						
 					default:
+						System.out.println("Operation Denied");
+						output.writeBytes(msg_sent + '\n');
 						break;
 				}
 			}	
