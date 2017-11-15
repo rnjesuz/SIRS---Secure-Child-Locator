@@ -1,6 +1,7 @@
 import java.io.*;
 import java.net.*;
 import java.util.*;
+import java.nio.file.*;
 
 public class ServerThread extends Thread{
 
@@ -8,13 +9,19 @@ public class ServerThread extends Thread{
 	private BufferedReader input;
 	private DataOutputStream output;
 
+	//map of every appID and it's key
 	private HashMap<String, String> userHashMap = new HashMap<String, String>();
+	//map os every beaconID and it's key
 	private HashMap<String, String> beaconHashMap = new HashMap<String, String>();
+	//map of every appID and the beacons they have acess to
+	private HashMap<String, ArrayList<String>> AppBeacons = new HashMap<String, ArrayList<String>>();
+	
 	private final String USR_HM_PATH = "/database/userHashMap.dat";
 	private final String BCN_HM_PATH = "/database/beaconHashMap.dat";
 
 	private final String delim = "_";
 	
+	//ID of the connectd client (either app or beacon)
 	private String clientID;
 
 	public ServerThread(Socket s) {
@@ -233,6 +240,7 @@ public class ServerThread extends Thread{
 				default:
 					break;
 				}
+		
 			}	
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -249,10 +257,68 @@ public class ServerThread extends Thread{
 			while(true) {
 				String msg_rcv = input.readLine();
 				String[] msg = msg_rcv.split(delim);
+				String msg_sent;
 
 				switch(msg[0]) {
-				default:
+					
+					//case to add a new beacon
+					case "ADD":
+					//ADD_BEACONID_BEACONPASS
+					System.out.println("App tryed to add beacon: " + msg[1]);
+					msg_sent = "Incorrect Credentials";
+					
+					//checks for existence of beacon
+					if(beaconHashMap.containsKey(msg[1])) {
+						//checks if password matches
+						if(beaconHashMap.get(msg[1]).equals(msg[2])){
+							//check if  client exist in map
+							//if not, adds it associated to a List containing the beaconID
+							if(! AppBeacons.containsKey(clientID)){
+								ArrayList<String> newList =  new ArrayList<String>();
+								newList.add(msg[1]);
+								AppBeacons.put( clientID, newList );
+								msg_sent = "Added";
+								System.out.println("Beacon added to client");
+							}
+							else{
+								//client has a map. Check if beacon is already added
+								
+								//get list of beacons
+								ArrayList<String> beacons = AppBeacons.get(clientID);
+								//is beacon added?
+								if(beacons.contains(msg[1]))
+									msg_sent = "Beacon was already previously added";
+								else{
+									//no...so, we add
+									beacons.add(msg[1]);
+									AppBeacons.put(clientID, beacons);
+									msg_sent = "Added";
+									System.out.println("Beacon added to client");
+								}
+							}				
+						}
+					}
+					output.writeBytes(msg_sent + '\n');
 					break;
+					
+					//case to request coords from a beacon
+					case "REQ":
+					//REQ_BEACONID
+						System.out.println("App tryed to request coords from beacon: " + msg[1]);
+						msg_sent = "Beacon not added";
+						//check if beacon was added
+						ArrayList<String> beacons = AppBeacons.get(clientID);
+						if(beacons.contains(msg[1])){
+							//beacon was added
+							//read from file 
+							byte[] encoded = Files.readAllBytes(Paths.get("Coordinates" + File.separator + msg[1]));
+							msg_sent = new String(encoded);
+						}
+						output.writeBytes(msg_sent + '\n');
+						break;
+						
+					default:
+						break;
 				}
 			}	
 		} catch (IOException e) {
