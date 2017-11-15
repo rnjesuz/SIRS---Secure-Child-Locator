@@ -3,7 +3,6 @@ package ist.meic.sirs.securechildlocator;
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.annotation.TargetApi;
-import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.support.annotation.NonNull;
@@ -31,6 +30,7 @@ import android.widget.AutoCompleteTextView;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -41,20 +41,13 @@ import static android.Manifest.permission.READ_CONTACTS;
 /**
  * A login screen that offers login via email/password.
  */
-public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<Cursor> {
+public class SignInActivity extends AppCompatActivity implements LoaderCallbacks<Cursor> {
 
     /**
      * Id to identity READ_CONTACTS permission request.
      */
     private static final int REQUEST_READ_CONTACTS = 0;
 
-    /**
-     * A dummy authentication store containing known user names and passwords.
-     * TODO: remove after connecting to a real authentication system.
-     */
-    private static final String[] DUMMY_CREDENTIALS = new String[]{
-            "@:qwerty", "bar@example.com:world"
-    };
     /**
      * Keep track of the login task to ensure we can cancel it if requested.
      */
@@ -63,19 +56,21 @@ public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<
     // UI references.
     private AutoCompleteTextView mEmailView;
     private EditText mPasswordView;
+    private EditText mConfPasswordView;
     private View mProgressView;
     private View mLoginFormView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_login);
+        setContentView(R.layout.activity_sign_in);
         // Set up the login form.
         mEmailView = (AutoCompleteTextView) findViewById(R.id.email);
         populateAutoComplete();
 
         mPasswordView = (EditText) findViewById(R.id.password);
-        mPasswordView.setOnEditorActionListener(new TextView.OnEditorActionListener() {
+        mConfPasswordView = (EditText) findViewById(R.id.conf_password);
+        mConfPasswordView.setOnEditorActionListener(new TextView.OnEditorActionListener() {
             @Override
             public boolean onEditorAction(TextView textView, int id, KeyEvent keyEvent) {
                 if (id == R.id.login || id == EditorInfo.IME_NULL) {
@@ -91,15 +86,6 @@ public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<
             @Override
             public void onClick(View view) {
                 attemptLogin();
-            }
-        });
-
-        Button mRegisterButton = (Button) findViewById(R.id.register_button);
-        mRegisterButton.setOnClickListener(new OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                Intent intent = new Intent(view.getContext(), SignInActivity.class);
-                startActivity(intent);
             }
         });
 
@@ -148,7 +134,6 @@ public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<
                 populateAutoComplete();
             }
         }
-
     }
 
 
@@ -169,6 +154,7 @@ public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<
         // Store values at the time of the login attempt.
         String email = mEmailView.getText().toString();
         String password = mPasswordView.getText().toString();
+        String conf_password = mConfPasswordView.getText().toString();
 
         boolean cancel = false;
         View focusView = null;
@@ -177,6 +163,12 @@ public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<
         if (!TextUtils.isEmpty(password) && !isPasswordValid(password)) {
             mPasswordView.setError(getString(R.string.error_invalid_password));
             focusView = mPasswordView;
+            cancel = true;
+        }
+
+        if(!conf_password.equals(password)) {
+            mConfPasswordView.setError("Password doesn't match with previous.");
+            focusView = mConfPasswordView;
             cancel = true;
         }
 
@@ -203,7 +195,8 @@ public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<
             mAuthTask.execute((Void) null);
             try {
                 if(mAuthTask.get()) {
-                    Intent intent = new Intent(this, BeaconManagerActivity.class);
+                    Toast.makeText(this, "Sign In successful, Log In with new account.", Toast.LENGTH_LONG);
+                    Intent intent = new Intent(this, LoginActivity.class);
                     startActivity(intent);
                 }
             } catch (InterruptedException e) {
@@ -295,7 +288,7 @@ public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<
     private void addEmailsToAutoComplete(List<String> emailAddressCollection) {
         //Create adapter to tell the AutoCompleteTextView what to show in its dropdown list.
         ArrayAdapter<String> adapter =
-                new ArrayAdapter<>(LoginActivity.this,
+                new ArrayAdapter<>(SignInActivity.this,
                         android.R.layout.simple_dropdown_item_1line, emailAddressCollection);
 
         mEmailView.setAdapter(adapter);
@@ -335,16 +328,12 @@ public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<
 
             try {
                 c.connectToServer();
-                c.login(mEmail, mPassword);
+                c.signUp(mEmail, mPassword);
             } catch (ConnectionFailedException e) {
                 Log.d("LOGIN", "Connection Failed");
                 ERROR_FLAG = "CONNECTION";
                 return false;
-            } catch(IncorrectPasswordException e) {
-                Log.d("LOGIN", "Wrong Password");
-                ERROR_FLAG = "PASS";
-                return false;
-            } catch(AccountDoesntExistException e) {
+            } catch(AccountAlreadyExistsException e) {
                 Log.d("LOGIN", "Account Doesn't Exist");
                 ERROR_FLAG = "ACCOUNT";
                 return false;
@@ -365,12 +354,8 @@ public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<
                         mEmailView.setError("Access Denied, possible connection problem");
                         mEmailView.requestFocus();
                         break;
-                    case "PASS":
-                        mPasswordView.setError(getString(R.string.error_incorrect_password));
-                        mPasswordView.requestFocus();
-                        break;
                     case "ACCOUNT":
-                        mEmailView.setError("This account doesn't exist.");
+                        mEmailView.setError("This account already exists.");
                         mEmailView.requestFocus();
                         break;
                 }
