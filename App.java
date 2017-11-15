@@ -36,7 +36,7 @@ public class App {
 			String beaconID;
 			String beaconPass;
 			
-			String msg;
+			String msg_rcv;
 
 			switch(option){
 			//LOGIN
@@ -49,8 +49,8 @@ public class App {
 					output.writeBytes("APP" + delim + "LOGIN" + delim + email + delim + pass + "\n");
 					System.out.println("Sending Message: " + "APP" + delim + "LOGIN" + delim + email + delim + pass);
 					
-					msg = input.readLine();
-					if(msg.equals("OK")) {
+					msg_rcv = input.readLine();
+					if(msg_rcv.equals("OK")) {
 						System.out.println("Logged in!");
 						System.out.println("Chose Option number: ");
 						System.out.println("(1)Add Beacon");
@@ -58,6 +58,7 @@ public class App {
 						option = br.readLine();
 						
 						switch(option) {
+						//case ADD
 						case "1":
 							System.out.println("Beacon ID:");
 							beaconID = br.readLine();
@@ -65,31 +66,51 @@ public class App {
 							beaconPass = br.readLine();
 							output.writeBytes("ADD" + delim + beaconID + delim + beaconPass + '\n');
 							
-							msg = input.readLine();
+							msg_rcv = input.readLine();
 							
-							if(msg.equals("OK")) {
+							if(msg_rcv.equals("OK")) {
 								System.out.println("Beacon successfuly added!");
 								break;
 							}
 							
-							if(msg.equals("ALREADY ADDED")) {
+							if(msg_rcv.equals("ALREADY ADDED")) {
 								System.out.println("Beacon already added to list...");
 								break;
 							}
 							
-							if(msg.equals("DOESNT EXIST")) {
+							if(msg_rcv.equals("DOESNT EXIST")) {
 								System.out.println("Beacon doesn't exist...");
 								break;
 							}
 							
-							if(msg.equals("NO")) {
+							if(msg_rcv.equals("NO")) {
 								System.out.println("Access Denied.");
 								break;
 							}
 							
 							break;
+							
+						//case REQ
 						case "2":
+							System.out.println("Beacon ID:");
+							beaconID = br.readLine();
+							output.writeBytes("REQ" + delim + beaconID + '\n');
+							
+							msg_rcv = input.readLine();
+							
+							//Beacon was not an authorized one, so it failed
+							if(msg_rcv.equals("NO")) {
+								System.out.println("Failed to grab coordinates");
+								break;
+							}
+							//beacon was an authorized one
+							else {
+								//msg received are the last known coordinates
+								String coordinates = msg_rcv;
+								System.out.println("Last know position: " + coordinates);
+							}
 							break;
+							
 						default:
 							break;
 						}
@@ -97,16 +118,16 @@ public class App {
 						break;
 					}
 					
-					if(msg.equals("WRONG PASS")) {
+					if(msg_rcv.equals("WRONG PASS")) {
 						System.out.println("Wrong Password, try again...");
 					}
 					
-					if(msg.equals("NOT REGISTERED")) {
+					if(msg_rcv.equals("NOT REGISTERED")) {
 						System.out.println("Account doesn't exist, please sign up...");
 						break;
 					}
 					
-					if(msg.equals("NO")) {
+					if(msg_rcv.equals("NO")) {
 						System.out.println("Access Denied.");
 						break;
 					}
@@ -126,16 +147,16 @@ public class App {
 					if(pass.equals(conf)) {
 						output.writeBytes("APP" + delim + "SIGNUP" + delim + email + delim + pass + "\n");
 						
-						msg = input.readLine();
-						if(msg.equals("OK")) {
+						msg_rcv = input.readLine();
+						if(msg_rcv.equals("OK")) {
 							System.out.println("Account Registered! Try to Login!");
 							break;
 						}						
-						if(msg.equals("ACCOUNT EXISTS")) {
+						if(msg_rcv.equals("ACCOUNT EXISTS")) {
 							System.out.println("Account already exists, Try again...");
 							break;
 						}	
-						if(msg.equals("NO")) {
+						if(msg_rcv.equals("NO")) {
 							System.out.println("Access Denied.");
 							break;
 						}	

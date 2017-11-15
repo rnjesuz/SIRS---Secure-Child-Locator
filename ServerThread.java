@@ -280,8 +280,6 @@ public class ServerThread extends Thread{
 					//ADD_BEACONID_BEACONPASS
 					System.out.println("App trying to add beacon: " + msg[1]);
 					
-					
-					
 					//checks for existence of beacon
 					if(beaconHashMap.containsKey(msg[1])) {
 						//checks if password matches
@@ -316,7 +314,9 @@ public class ServerThread extends Thread{
 						}
 					} else {
 						System.out.println("Beacon doesn't exist");
-						msg_sent="DOESNT EXIST";
+						
+						//removed to abstract the error from possible attacks. If the beacon addition fails there's no indication of why
+						//msg_sent="DOESNT EXIST";
 					}
 					output.writeBytes(msg_sent + '\n');
 					break;
