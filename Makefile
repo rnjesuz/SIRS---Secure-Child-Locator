@@ -8,6 +8,7 @@ CLASSES = \
         ServerThread.java \
         Server.java \
 		App.java \
+		Beacon.java \
 		PuppetMaster.java
 		
 default: classes

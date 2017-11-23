@@ -3,22 +3,20 @@ package ist.meic.sirs.securechildlocator;
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.annotation.TargetApi;
-import android.content.Intent;
-import android.content.pm.PackageManager;
-import android.support.annotation.NonNull;
-import android.support.design.widget.Snackbar;
-import android.support.v7.app.AppCompatActivity;
 import android.app.LoaderManager.LoaderCallbacks;
-
 import android.content.CursorLoader;
+import android.content.Intent;
 import android.content.Loader;
+import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.AsyncTask;
-
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.ContactsContract;
+import android.support.annotation.NonNull;
+import android.support.design.widget.Snackbar;
+import android.support.v7.app.AppCompatActivity;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.KeyEvent;
@@ -32,9 +30,13 @@ import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.IOException;
+import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+
+import ist.meic.sirs.securechildlocator.exceptions.*;
 
 import static android.Manifest.permission.READ_CONTACTS;
 
@@ -110,7 +112,7 @@ public class SignInActivity extends AppCompatActivity implements LoaderCallbacks
         }
         if (shouldShowRequestPermissionRationale(READ_CONTACTS)) {
             Snackbar.make(mEmailView, R.string.permission_rationale, Snackbar.LENGTH_INDEFINITE)
-                    .setAction(android.R.string.ok, new View.OnClickListener() {
+                    .setAction(android.R.string.ok, new OnClickListener() {
                         @Override
                         @TargetApi(Build.VERSION_CODES.M)
                         public void onClick(View v) {
@@ -313,14 +315,16 @@ public class SignInActivity extends AppCompatActivity implements LoaderCallbacks
 
         private final String mEmail;
         private final String mPassword;
-        private final Client c;
+        private Client c;
+        private static final String server_ip = "192.168.1.4";
+        private static final int server_port = 6667;
 
         private String ERROR_FLAG;
 
-        UserLoginTask(String email, String password) {
+        UserLoginTask(String email, String password)  {
             mEmail = email;
             mPassword = password;
-            c = new Client();
+            c = Client.getInstance();
         }
 
         @Override
