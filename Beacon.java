@@ -125,7 +125,7 @@ class BeaconClass {
 			System.out.println("Sending coords...");
 			try {
 				//TODO change to a proper coordinates system
-				String istCoords = "38.736685, -9.138619";  // latitude/longitude of IST. to simulate real coordinates
+				String istCoords = "38.736685_-9.138619";  // latitude/longitude of IST. to simulate real coordinates
 				socketOut.writeBytes("COORDS_" + istCoords + '\n');
 				
 				String received = socketIn.readLine();
