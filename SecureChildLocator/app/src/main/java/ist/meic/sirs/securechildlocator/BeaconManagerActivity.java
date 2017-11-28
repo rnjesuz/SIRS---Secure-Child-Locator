@@ -46,7 +46,6 @@ public class BeaconManagerActivity extends AppCompatActivity {
 
     public BeaconManagerActivity() {
         this.c = Client.getInstance();
-        Log.d("MANAGER", "In constructor");
     }
 
     @Override
@@ -76,7 +75,11 @@ public class BeaconManagerActivity extends AppCompatActivity {
             public void onItemClick(AdapterView<?> parent, final View view,
                                     int position, long id) {
                 String item = (String) parent.getItemAtPosition(position);
-                //TODO OPEN NEXT ACTIVITY
+                Log.d("MANAGER", "Selected: " + item);
+                Intent intent = new Intent(view.getContext(), BeaconTrackingActivity.class);
+                //Only passing beaconID, maybe should pass password as well...
+                intent.putExtra("beaconID", item);
+                startActivity(intent);
             }
         });
 
@@ -256,7 +259,6 @@ public class BeaconManagerActivity extends AppCompatActivity {
     }
 
     public class ShowListTask extends AsyncTask<Void, Void, ArrayList<String>> {
-
 
         ShowListTask() {}
 

@@ -32,7 +32,7 @@ public class Client {
     public static synchronized Client getInstance() {
         if(null == instance){
             instance = new Client();
-            instance.server_ip = "193.136.131.226";
+            instance.server_ip = "192.168.1.7";
             instance.server_port = 6667;
         }
         return instance;
@@ -207,6 +207,19 @@ public class Client {
         }
 
         return list;
+    }
+
+    public String getCoordinates(String beaconID) {
+        String coords = "";
+
+        try {
+            output.writeBytes("REQ" + delim + beaconID + '\n');
+            coords = input.readLine();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return coords;
     }
 }
 
