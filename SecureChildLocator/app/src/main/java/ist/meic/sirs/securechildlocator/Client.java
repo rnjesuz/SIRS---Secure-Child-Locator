@@ -1,13 +1,33 @@
 package ist.meic.sirs.securechildlocator;
 
 import android.util.Log;
+
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
+import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.UnsupportedEncodingException;
 import java.net.Socket;
+import java.security.InvalidKeyException;
+import java.security.KeyFactory;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.List;
+
+import javax.crypto.BadPaddingException;
+import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 
 import ist.meic.sirs.securechildlocator.exceptions.*;
 
@@ -19,9 +39,14 @@ public class Client {
 
     private static Client instance = null;
 
+    private PrivateKey cli_privkey;
+    private PublicKey cli_pubkey;
+    private PublicKey server_pubkey;
+    private Cipher cipher;
+
     private static String server_ip;
     private static int server_port;
-    private BufferedReader input;
+    private DataInputStream input;
     private DataOutputStream output;
     private Socket socket;
 
@@ -32,7 +57,7 @@ public class Client {
     public static synchronized Client getInstance() {
         if(null == instance){
             instance = new Client();
-            instance.server_ip = "192.168.1.7";
+            instance.server_ip = "192.168.1.5";
             instance.server_port = 6667;
         }
         return instance;
@@ -42,7 +67,7 @@ public class Client {
         return output;
     }
 
-    public BufferedReader getInput() {
+    public DataInputStream getInput() {
         return input;
     }
 
@@ -52,7 +77,7 @@ public class Client {
 
     public void setOutput(Socket s) {
         try {
-            output = new DataOutputStream(s.getOutputStream());
+            output = new DataOutputStream(new BufferedOutputStream(s.getOutputStream()));
         } catch(IOException e) {
             e.printStackTrace();
         }
@@ -60,7 +85,7 @@ public class Client {
 
     public void setInput(Socket s) {
         try {
-            input =  new BufferedReader(new InputStreamReader(s.getInputStream()));
+            input =  new DataInputStream(new BufferedInputStream(s.getInputStream()));
         } catch(IOException e) {
             e.printStackTrace();
         }
@@ -79,24 +104,69 @@ public class Client {
         setSocket();
         setInput(getSocket());
         setOutput(getSocket());
+        generateKeyPair();
+        tradeKeys();
         Log.d("CLIENT", "Connection Established!\n");
+    }
+
+    //Generate Asymmetric Key pair
+    private void generateKeyPair() {
+        Log.d("CLIENT", "Generating Key Pair");
+        try {
+            KeyPairGenerator keyPairGenerator = null;
+            keyPairGenerator = KeyPairGenerator.getInstance("RSA");
+            keyPairGenerator.initialize(1024);
+            KeyPair keyPair = keyPairGenerator.genKeyPair();
+            cipher = Cipher.getInstance("RSA");
+            cli_pubkey = keyPair.getPublic();
+            cli_privkey = keyPair.getPrivate();
+            Log.d("CLIENT", "Key Pair Generation: SUCCESS");
+        } catch (NoSuchAlgorithmException | NoSuchPaddingException e) {
+            Log.d("CLIENT", "Key Pair Generation: FAIL");
+        }
+    }
+
+    private void tradeKeys() {
+        //Send public key to server
+        try {
+            String aux = new String(cli_pubkey.getEncoded(), "UTF-8");
+            Log.d("CLIENT", "Client Public Key: " + aux);
+            output.writeInt(aux.length());
+            output.writeBytes(aux);
+            output.flush();
+        } catch (IOException e) {
+            Log.d("CLIENT", "Client Public Key wasn't delivered");
+        }
+
+        //Receive public key from server
+        try {
+            byte[] msg = new byte [input.readInt()];
+            input.readFully(msg);
+            Log.d("CLIENT", "Server Public Key: " + new String(msg, "UTF-8"));
+            server_pubkey = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(msg));
+        } catch (IOException | NoSuchAlgorithmException | InvalidKeySpecException e) {
+            Log.d("CLIENT", "Server Public Key wasn't received");
+        }
     }
 
     public void login(String email, String password) throws ConnectionFailedException,
             IncorrectPasswordException, AccountDoesntExistException {
         String msg;
 
-        try {
-            Log.d("CLIENT", "Logging in with " + email + " " + password);
-            output.writeBytes("APP" + delim + "LOGIN" + delim + email + delim + password + '\n');
-            msg = input.readLine();
-        } catch (IOException e) {
-            Log.d("CLIENT", e.getMessage());
-            throw new ConnectionFailedException();
+        Log.d("CLIENT", "Logging in with " + email + " " + password);
+        sendMsg("APP" + delim + "LOGIN" + delim + email + delim + password);
+        /*output.writeBytes("APP" + delim + "LOGIN" + delim + email + delim + password + '\n');
+        msg = input.readLine();*/
+        msg = rcvMsg();
+
+        if(msg.isEmpty()) {
+            //the message being empty, means that there was an error in the encryption
+            //THROW NEW EXCEPTION? ex. CipherErrorException
+            return;
         }
 
         if (msg.equals("OK")) {
-            Log.d("CLIENT", "Logged in!");
+            Log.d("CLIENT", "Log In: SUCCESS");
             return;
         }
 
@@ -220,6 +290,63 @@ public class Client {
         }
 
         return coords;
+    }
+
+    private void sendMsg(String msg) throws ConnectionFailedException {
+        //TODO: Add counter, signature, SALT(?), etc...
+        try {
+            byte[] send_msg = encrypt(msg);
+            output.writeInt(send_msg.length);
+            output.write(send_msg);
+            Log.d("CLIENT", "Send Message: SUCCESS");
+        } catch (IOException | CipherErrorException e) {
+            Log.d("CLIENT", "Send Message: FAIL");
+            throw new ConnectionFailedException();
+        }
+    }
+
+    private String rcvMsg() throws ConnectionFailedException {
+        String msg = "";
+        //TODO: confirm counter, signature and isolate the message
+        try {
+            byte[] rcvd_msg = new byte[input.readInt()];
+            input.readFully(rcvd_msg);
+            msg = decrypt(rcvd_msg);
+            Log.d("CLIENT", "Receive Message: SUCCESS");
+        } catch (IOException | CipherErrorException e) {
+            Log.d("CLIENT", "Receive Message: FAIL");
+            throw new ConnectionFailedException();
+        }
+        return msg;
+    }
+
+    private byte[] encrypt(String msg) throws CipherErrorException {
+        byte[] result = null;
+        try {
+            cipher.init(Cipher.ENCRYPT_MODE, server_pubkey);
+            result = cipher.doFinal(msg.getBytes("UTF-8"));
+            Log.d("CLIENT", "Encrypted message: " + new String(result, "UTF-8"));
+        } catch (InvalidKeyException | UnsupportedEncodingException | IllegalBlockSizeException
+                | BadPaddingException e) {
+            Log.d("CLIENT", "Encryption: FAILED");
+            throw new CipherErrorException();
+        }
+        return result;
+    }
+
+    private String decrypt(byte[] msg) throws CipherErrorException {
+        String result = "";
+        try {
+            cipher.init(Cipher.DECRYPT_MODE, cli_privkey);
+            byte[] aux = cipher.doFinal(msg);
+            result = new String(aux, "UTF-8");
+            Log.d("CLIENT", "Decrypted message: " + result);
+        } catch (InvalidKeyException | UnsupportedEncodingException | IllegalBlockSizeException
+                | BadPaddingException e) {
+            Log.d("CLIENT", "Decryption: FAILED");
+            throw new CipherErrorException();
+        }
+        return result;
     }
 }
 

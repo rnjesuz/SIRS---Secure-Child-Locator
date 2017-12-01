@@ -1,13 +1,24 @@
 import java.io.*;
 import java.net.*;
 import java.util.*;
+
+import javax.crypto.*;
+
 import java.nio.file.*;
+import java.security.*;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.X509EncodedKeySpec;
 
 public class ServerThread extends Thread{
 
 	private Socket socket;
-	private BufferedReader input;
+	private DataInputStream input;
 	private DataOutputStream output;
+	
+	private PublicKey cli_pubkey;
+	private PublicKey server_pubkey;
+	private PrivateKey server_privkey;
+	private Cipher cipher;
 
 	//map of every appID and its key
 	private HashMap<String, String> userHashMap = new HashMap<String, String>();
@@ -25,8 +36,10 @@ public class ServerThread extends Thread{
 	//ID of the connected client (either app or beacon)
 	private String clientID;
 
-	public ServerThread(Socket s) {
+	public ServerThread(Socket s, PublicKey pub, PrivateKey priv) {
 		socket = s;
+		server_pubkey = pub;
+		server_privkey = priv;
 	}
 
 	@Override
@@ -34,9 +47,9 @@ public class ServerThread extends Thread{
 		try{
 
 			prepareCommunication();
-			loadHashMaps();
-
-			String msg_rcv = input.readLine();
+			loadHashMaps();	
+				
+			String msg_rcv = rcvMsg();
 			String msg_sent = "NO";
 			String[] msg = msg_rcv.split(delim);
 
@@ -46,14 +59,12 @@ public class ServerThread extends Thread{
 				if(msg.length == 4){
 					if(appInitialConnection(msg)) {
 						System.out.println("Connection with App established!");
-						//TODO REMOVE
 						printHashMaps();
 						appListen();
 					}
 				} else {
-					output.writeBytes(msg_sent + '\n');
+					sendMsg(msg_sent);
 					System.out.println("Access Denied!");
-					System.out.println("Sent: " + msg_sent);
 				}
 				break;
 
@@ -87,35 +98,39 @@ public class ServerThread extends Thread{
 	//Loads hashmaps if they exists, sets up input and output channels with server
 	private void prepareCommunication() throws IOException{
 		System.out.println("Creating Communication Channels...");
-		input = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-		output = new DataOutputStream(socket.getOutputStream());
+		input = new DataInputStream(new BufferedInputStream (socket.getInputStream()));
+		output = new DataOutputStream( new BufferedOutputStream (socket.getOutputStream()));
 		System.out.println("Channels Created!");
-	}
-
-	private void loadHashMaps() {
-		final String dir = System.getProperty("user.dir");
-		System.out.println("Loading hashmaps...");
-
-		File file = new File(dir + USR_HM_PATH);
-		if(file.exists()) {
-			userHashMap = (HashMap) loadStatus(USR_HM_PATH);
-			System.out.println("User hashmap loaded!");
-		} 
-
-		file = new File(dir + BCN_HM_PATH);
-		if(file.exists()) {
-			beaconHashMap = (HashMap) loadStatus(BCN_HM_PATH);
-			System.out.println("Beacon hashmap loaded!");
+		
+		//###DRAFT_BEGIN###
+			//receive client public key
+			try {
+				System.out.println("Waiting for client public key");
+				byte[] msg = new byte [input.readInt()];
+				input.readFully(msg);
+				System.out.println("Client Public Key: " + new String(msg, "UTF-8"));
+				cli_pubkey =  KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(msg));
+			} catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
+				System.out.println("Client Public Key not Received");
+			}
+		
+			//send public key to client
+			byte[] aux = server_pubkey.getEncoded();
+			System.out.println("Sending Server Public Key: " + aux);
+			output.writeInt(aux.length);
+			output.write(aux);
+			output.flush();
+			System.out.println("Sent Server Public Key");
+		//###DRAFT_END###
+		
+		//TODO: fix this
+		try {
+			Cipher cipher = Cipher.getInstance("RSA");
+		} catch (NoSuchAlgorithmException | NoSuchPaddingException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
 		}
-
-		file = new File(dir + APP_BCN_PATH);
-		if(file.exists()) {
-			appBeacons = (HashMap) loadStatus(APP_BCN_PATH);
-			System.out.println("App's beacons hashmap loaded!");
-		}
-
-		System.out.println("Loading done!");
-	}
+	}	
 
 	//Verify if sign up or login operation
 	//return true if connection established
@@ -132,18 +147,19 @@ public class ServerThread extends Thread{
 				if(userHashMap.containsKey(msg[2])) {
 					//Check if password matches else wrong password
 					if(userHashMap.get(msg[2]).equals(msg[3])) {
-						System.out.println("Logged In");
+						System.out.println("Log In: SUCCESS");
 						clientID = msg[2];
 						msg_sent = "OK";
 						result = true;
 					} else {
-						System.out.println("Wrong Password");
+						System.out.println("Log In: FAIL->Wrong Password");
 						msg_sent = "WRONG PASS";
 					}
 				} else  {
-					System.out.println("User not registered");
+					System.out.println("Log in: FAIL->User not registered");
 					msg_sent = "NOT REGISTERED";
 				}
+				sendMsg(msg_sent);
 				break;
 
 			case "SIGNUP":
@@ -166,10 +182,9 @@ public class ServerThread extends Thread{
 				System.out.println("Sent: " + msg_sent);
 				break;
 			}
-
-			output.writeBytes(msg_sent + '\n');
+			
 			return result;
-
+			
 		} catch(IOException e) {
 			e.printStackTrace();
 			return false;
@@ -377,7 +392,86 @@ public class ServerThread extends Thread{
 		}
 	}
 
-	/*FUNCTIONS TO HANDLE STORE AND LOAD HASHMAPS*/
+	//#################################CIPHER OPERATIONS#############################################
+    private void sendMsg(String msg) {
+        //TODO: Add counter, signature, SALT(?), etc...
+        try {
+            byte[] send_msg = encrypt(msg);
+            output.writeInt(send_msg.length);
+            output.write(send_msg);
+            System.out.println("Send Message: SUCCESS");
+        } catch (IOException e) {
+            System.out.println("Send Message: FAIL");
+        }
+    }
+
+    private String rcvMsg() {
+        String msg = "";
+        //TODO: confirm counter, signature and isolate the message
+        try {
+            byte[] rcvd_msg = new byte[input.readInt()];
+            input.readFully(rcvd_msg);
+            msg = decrypt(rcvd_msg);
+            System.out.println("Receive Message: SUCCESS");
+        } catch (IOException e) {
+            System.out.println("Receive Message: FAIL");
+        }
+        return msg;
+    }
+
+    private byte[] encrypt(String msg) {
+        byte[] result = null;
+        try {
+            cipher.init(Cipher.ENCRYPT_MODE, server_pubkey);
+            result = cipher.doFinal(msg.getBytes("UTF-8"));
+            System.out.println("Encrypted message: " + new String(result, "UTF-8"));
+        } catch (InvalidKeyException | UnsupportedEncodingException | IllegalBlockSizeException
+                | BadPaddingException e) {
+            System.out.println("Encryption: FAILED");
+        }
+        return result;
+    }
+
+    private String decrypt(byte[] msg) {
+        String result = "";
+        try {
+            cipher.init(Cipher.DECRYPT_MODE, server_privkey);
+            byte[] aux = cipher.doFinal(msg);
+            result = new String(aux, "UTF-8");
+            System.out.println("Decrypted message: " + result);
+        } catch (InvalidKeyException | UnsupportedEncodingException | IllegalBlockSizeException
+                | BadPaddingException e) {
+            System.out.println("Decryption: FAILED");
+        }
+        return result;
+    }
+	
+	//#################################HASH-MAPS#####################################################
+	private void loadHashMaps() {
+		final String dir = System.getProperty("user.dir");
+		System.out.println("Loading hashmaps...");
+
+		File file = new File(dir + USR_HM_PATH);
+		if(file.exists()) {
+			userHashMap = (HashMap) loadStatus(USR_HM_PATH);
+			System.out.println("User hashmap loaded!");
+		} 
+
+		file = new File(dir + BCN_HM_PATH);
+		if(file.exists()) {
+			beaconHashMap = (HashMap) loadStatus(BCN_HM_PATH);
+			System.out.println("Beacon hashmap loaded!");
+		}
+
+		file = new File(dir + APP_BCN_PATH);
+		if(file.exists()) {
+			appBeacons = (HashMap) loadStatus(APP_BCN_PATH);
+			System.out.println("App's beacons hashmap loaded!");
+		}
+
+		System.out.println("Loading done!");
+	}
+
 	private Object loadStatus(String name){
 		Object result = null;
 		try {
