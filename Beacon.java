@@ -1,6 +1,13 @@
 import java.io.*;
 import java.net.Socket;
 
+import javax.crypto.*;
+
+import java.nio.file.*;
+import java.security.*;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.X509EncodedKeySpec;
+
 // main class
 // it's purpose is to create an instance of Beacon
 public class Beacon {
@@ -21,8 +28,12 @@ class BeaconClass {
 	private String password;
 	
 	private Socket beaconSocket;
-	private BufferedReader socketIn;
+	private DataInputStream socketIn;
 	private DataOutputStream socketOut;
+
+    private PublicKey pub;
+    private PrivateKey priv;
+    private PublicKey server_pub;
 	
 	
 	//Constructors
@@ -83,8 +94,10 @@ class BeaconClass {
 	//Startup functions
 	public void runBeacon(){
 		System.out.println("Setting up beacon...");
+        generateKeyPair();
 		ConnectToServer();
 		
+        prepareCommunication();
 		SignUp();
 		try{
 		String received = socketIn.readLine();
@@ -104,12 +117,58 @@ class BeaconClass {
 		
 			beaconSocket = new Socket(ipToConnect, portToConnect);
 			socketOut = new DataOutputStream(beaconSocket.getOutputStream());
-			socketIn = new BufferedReader(new InputStreamReader(beaconSocket.getInputStream()));
+			socketIn = new DataInputStream(beaconSocket.getInputStream());
 			System.out.println("Connection established");
 		} catch (IOException e){
 			e.printStackTrace();
 		}
 	}
+
+	private void prepareCommunication(){
+        //Send server public key
+        try {
+            File beacon_pubkeyfile = new File("BeaconDir/pubkey");
+            FileInputStream fis = new FileInputStream("BeaconDir/pubkey");
+            byte[] beacon_encodedpubkey = new byte[(int) beacon_pubkeyfile.length()];
+            fis.read(beacon_encodedpubkey);
+            fis.close();
+            System.out.println("Sending Beacon Public Key: " + beacon_encodedpubkey);
+            socketOut.write(beacon_encodedpubkey);
+            socketOut.flush();
+            System.out.println("Sent Beacon Public Key");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        //Get server public key
+        try {
+            byte[] aux = new byte[16 * 1024];
+            FileOutputStream fos = new FileOutputStream("BeaconDir/server_pubkey");
+
+            int count;
+            while((count = socketIn.read(aux)) > 0) {
+                fos.write(aux, 0, count);
+            }
+            fos.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        //Load server public key
+        try{
+            File filePublicKey = new File("BeaconDir/server_pubkey");
+            FileInputStream fis = new FileInputStream("BeaconDir/server_pubkey");
+            byte[] encodedPublicKey = new byte[(int) filePublicKey.length()];
+            fis.read(encodedPublicKey);
+            fis.close();
+
+            KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+            X509EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(encodedPublicKey);
+            server_pub = keyFactory.generatePublic(publicKeySpec);
+        } catch (IOException | NoSuchAlgorithmException | InvalidKeySpecException e) {
+            e.printStackTrace();
+        }
+    }
 
 	private void SignUp() {
 		System.out.println("Signing Up");
@@ -141,4 +200,25 @@ class BeaconClass {
 		}
 	}
 	
+	private void generateKeyPair() {
+		
+		KeyPairGenerator keyPairGenerator = null;
+		
+		try {
+			keyPairGenerator = KeyPairGenerator.getInstance("RSA");
+			keyPairGenerator.initialize(1024);
+			KeyPair keyPair = keyPairGenerator.genKeyPair();
+			pub = keyPair.getPublic();
+			priv = keyPair.getPrivate();
+
+            //Save the keys to files
+            X509EncodedKeySpec x509EncodedKeySpec = new X509EncodedKeySpec(pub.getEncoded());
+            FileOutputStream fos = new FileOutputStream("BeaconDir/pubkey");
+            fos.write(x509EncodedKeySpec.getEncoded());
+            fos.close();
+			System.out.println("Key Pair Generation: SUCCESS");
+		} catch (NoSuchAlgorithmException|IOException e) {
+			System.out.println("Key Pair Generation: FAIL");
+		}
+	}
 }

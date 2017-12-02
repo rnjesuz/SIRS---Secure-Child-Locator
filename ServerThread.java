@@ -104,23 +104,43 @@ public class ServerThread extends Thread{
 		
 		//###DRAFT_BEGIN###
 			//receive client public key
-			try {
-				System.out.println("Waiting for client public key");
-				byte[] msg = new byte [input.readInt()];
-				input.readFully(msg);
-				System.out.println("Client Public Key: " + new String(msg, "UTF-8"));
-				cli_pubkey =  KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(msg));
-			} catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
-				System.out.println("Client Public Key not Received");
-			}
-		
-			//send public key to client
-			byte[] aux = server_pubkey.getEncoded();
-			System.out.println("Sending Server Public Key: " + aux);
-			output.writeInt(aux.length);
-			output.write(aux);
-			output.flush();
+            try {
+                byte[] aux = new byte[16 * 1024];
+                FileOutputStream fos = new FileOutputStream("ServerDir/" + Thread.currentThread().getId() + "_pubkey");
+
+                int count;
+                while((count = input.read(aux)) > 0) {
+                    fos.write(aux, 0, count);
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+            //Load client public key
+            try{
+                File filePublicKey = new File("ServerDir/" + Thread.currentThread().getId() + "_pubkey");
+                FileInputStream fis = new FileInputStream("ServerDir/" + Thread.currentThread().getId() + "_pubkey");
+                byte[] encodedPublicKey = new byte[(int) filePublicKey.length()];
+                fis.read(encodedPublicKey);
+                fis.close();
+
+                KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+                X509EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(encodedPublicKey);
+                cli_pubkey = keyFactory.generatePublic(publicKeySpec);
+            } catch (IOException | NoSuchAlgorithmException | InvalidKeySpecException e) {
+                e.printStackTrace();
+            }
+
+            File server_pubkeyfile = new File("ServerDir/pubkey");
+            FileInputStream fis = new FileInputStream("ServerDir/pubkey");
+            byte[] server_encodedpubkey = new byte[(int) server_pubkeyfile.length()];
+            fis.read(server_encodedpubkey);
+            fis.close();
+			System.out.println("Sending Server Public Key: " + server_encodedpubkey);
+			output.write(server_encodedpubkey);
+            output.flush();
 			System.out.println("Sent Server Public Key");
+
 		//###DRAFT_END###
 		
 		//TODO: fix this

@@ -1,8 +1,8 @@
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.security.*;
+import java.security.spec.*;
 
 import javax.crypto.Cipher;
 import javax.crypto.NoSuchPaddingException;
@@ -72,8 +72,14 @@ public class Server {
 			KeyPair keyPair = keyPairGenerator.genKeyPair();
 			pub = keyPair.getPublic();
 			priv = keyPair.getPrivate();
+
+            //Save the keys to files
+            X509EncodedKeySpec x509EncodedKeySpec = new X509EncodedKeySpec(pub.getEncoded());
+            FileOutputStream fos = new FileOutputStream("ServerDir/pubkey");
+            fos.write(x509EncodedKeySpec.getEncoded());
+            fos.close();
 			System.out.println("Key Pair Generation: SUCCESS");
-		} catch (NoSuchAlgorithmException e) {
+		} catch (NoSuchAlgorithmException|IOException e) {
 			System.out.println("Key Pair Generation: FAIL");
 		}
 	}

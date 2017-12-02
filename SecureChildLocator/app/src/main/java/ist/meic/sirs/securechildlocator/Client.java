@@ -7,6 +7,8 @@ import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -57,7 +59,7 @@ public class Client {
     public static synchronized Client getInstance() {
         if(null == instance){
             instance = new Client();
-            instance.server_ip = "192.168.1.5";
+            instance.server_ip = "192.168.1.117";
             instance.server_port = 6667;
         }
         return instance;
@@ -129,10 +131,12 @@ public class Client {
     private void tradeKeys() {
         //Send public key to server
         try {
-            String aux = new String(cli_pubkey.getEncoded(), "UTF-8");
-            Log.d("CLIENT", "Client Public Key: " + aux);
-            output.writeInt(aux.length());
-            output.writeBytes(aux);
+            File client_pubkeyfile = new File("pubkey");
+            FileInputStream fis = new FileInputStream("pubkey");
+            byte[] client_encodedpubkey = new byte [(int) client_pubkeyfile.length()];
+            fis.read(client_encodedpubkey);
+            fis.close();
+            output.write(client_encodedpubkey);
             output.flush();
         } catch (IOException e) {
             Log.d("CLIENT", "Client Public Key wasn't delivered");
@@ -140,12 +144,32 @@ public class Client {
 
         //Receive public key from server
         try {
-            byte[] msg = new byte [input.readInt()];
-            input.readFully(msg);
-            Log.d("CLIENT", "Server Public Key: " + new String(msg, "UTF-8"));
-            server_pubkey = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(msg));
-        } catch (IOException | NoSuchAlgorithmException | InvalidKeySpecException e) {
+            byte[] aux = new byte[16 * 1024];
+            FileOutputStream fos = new FileOutputStream("server_pubkey");
+
+            int count;
+            while((count = input.read(aux)) > 0) {
+                fos.write(aux, 0, count);
+            }
+            fos.close();
+        } catch (IOException e) {
             Log.d("CLIENT", "Server Public Key wasn't received");
+        }
+
+        //Load Server Public key
+        try {
+            File filePublicKey = new File("server_pubkey");
+            FileInputStream fis = new FileInputStream("server_pubkey");
+            byte[] encodedPublicKey = new byte[(int) filePublicKey.length()];
+            fis.read(encodedPublicKey);
+            fis.close();
+
+            KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+            X509EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(
+                    encodedPublicKey);
+            server_pubkey = keyFactory.generatePublic(publicKeySpec);
+        } catch (IOException | NoSuchAlgorithmException | InvalidKeySpecException e) {
+            Log.d("CLIENT", "Server Public Key wasn't loaded");
         }
     }
 
