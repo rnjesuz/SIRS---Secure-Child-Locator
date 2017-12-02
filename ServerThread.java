@@ -102,6 +102,7 @@ public class ServerThread extends Thread{
 		output = new DataOutputStream( new BufferedOutputStream (socket.getOutputStream()));
 		System.out.println("Channels Created!");
 		
+		/*
 		//###DRAFT_BEGIN###
 			//receive client public key
             try {
@@ -130,7 +131,13 @@ public class ServerThread extends Thread{
             } catch (IOException | NoSuchAlgorithmException | InvalidKeySpecException e) {
                 e.printStackTrace();
             }
-
+*/
+			
+			//create dir
+			File directory = new File("ServerDir");
+			if(! directory.exists())
+					directory.mkdir();
+				
             File server_pubkeyfile = new File("ServerDir/pubkey");
             FileInputStream fis = new FileInputStream("ServerDir/pubkey");
             byte[] server_encodedpubkey = new byte[(int) server_pubkeyfile.length()];

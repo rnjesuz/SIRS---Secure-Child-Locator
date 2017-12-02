@@ -2,6 +2,10 @@ import java.io.*;
 import java.net.Socket;
 
 import javax.crypto.*;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
+import java.security.spec.*;
+import javax.crypto.spec.PBEKeySpec;
 
 import java.nio.file.*;
 import java.security.*;
@@ -94,7 +98,12 @@ class BeaconClass {
 	//Startup functions
 	public void runBeacon(){
 		System.out.println("Setting up beacon...");
-        generateKeyPair();
+		
+		//test cipher
+		//cipherAES("Hello");
+		
+		
+        //generateKeyPair();
 		ConnectToServer();
 		
         prepareCommunication();
@@ -102,7 +111,7 @@ class BeaconClass {
 		try{
 		String received = socketIn.readLine();
 		System.out.println(received);
-		if(received.equals("OK"))
+		if(received.equals("OK"))			
 			ImAliveCicle();
 		} catch(IOException e){
 			e.printStackTrace();
@@ -126,7 +135,7 @@ class BeaconClass {
 
 	private void prepareCommunication(){
         //Send server public key
-        try {
+        /*try {
             File beacon_pubkeyfile = new File("BeaconDir/pubkey");
             FileInputStream fis = new FileInputStream("BeaconDir/pubkey");
             byte[] beacon_encodedpubkey = new byte[(int) beacon_pubkeyfile.length()];
@@ -138,14 +147,21 @@ class BeaconClass {
             System.out.println("Sent Beacon Public Key");
         } catch (IOException e) {
             e.printStackTrace();
-        }
+        }*/
 
         //Get server public key
         try {
-            byte[] aux = new byte[16 * 1024];
+			System.out.println("Getting server pub Key");
+            
+			//create dir
+			File directory = new File("BeaconDir");
+			if(! directory.exists())
+					directory.mkdir();
+				
             FileOutputStream fos = new FileOutputStream("BeaconDir/server_pubkey");
 
             int count;
+			byte[] aux = new byte[16 * 1024];
             while((count = socketIn.read(aux)) > 0) {
                 fos.write(aux, 0, count);
             }
@@ -156,6 +172,8 @@ class BeaconClass {
 
         //Load server public key
         try{
+			System.out.println("Loading server pub Key");
+				
             File filePublicKey = new File("BeaconDir/server_pubkey");
             FileInputStream fis = new FileInputStream("BeaconDir/server_pubkey");
             byte[] encodedPublicKey = new byte[(int) filePublicKey.length()];
@@ -197,6 +215,66 @@ class BeaconClass {
 				e.printStackTrace();
 			}	
 			
+		}
+	}
+	
+	private byte[] cipherAES(String text){
+	
+		byte[] cipherText = null;
+		try{
+			
+			System.out.println(text);
+			
+			//generate cypher key given password and salt
+			char[] passwordChar = password.toCharArray();
+			byte[] saltByte = "salt".getBytes();
+			SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
+			KeySpec spec = new PBEKeySpec(passwordChar, saltByte, 65536, 128);
+			SecretKey tmp = factory.generateSecret(spec);
+			SecretKey secret = new SecretKeySpec(tmp.getEncoded(), "AES");
+			//Cipher
+			Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+			cipher.init(Cipher.ENCRYPT_MODE, secret);
+			cipherText = cipher.doFinal(text.getBytes("UTF-8"));
+			
+			System.out.println(cipherText);
+			
+			AlgorithmParameters params = cipher.getParameters();
+			byte[] iv = params.getParameterSpec(IvParameterSpec.class).getIV();
+			
+			//test decription
+			//decipherAES(cipherText, iv);
+			
+		} //TODO wrong! wrong! wrong!
+		catch (Exception e){
+			e.printStackTrace();
+		}
+		
+		return cipherText;
+	}
+	
+	//test function tocheck if cypher/uncypher works
+	private void decipherAES(byte[] cipherText, byte[] iv){
+		
+		try{
+		
+		System.out.println(cipherText);
+		
+		//Generate SecretKey
+		SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
+		KeySpec spec = new PBEKeySpec(password.toCharArray(), "salt".getBytes(), 65536, 128);
+		SecretKey tmp = factory.generateSecret(spec);
+		SecretKey secret = new SecretKeySpec(tmp.getEncoded(), "AES");
+		//Decipher
+		Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+		cipher.init(Cipher.DECRYPT_MODE, secret, new IvParameterSpec(iv));
+		String plainText = new String(cipher.doFinal(cipherText), "UTF-8");
+		
+		System.out.println(plainText);
+		
+		} //TODO wrong! wrong! wrong!
+		catch (Exception e){
+			e.printStackTrace();
 		}
 	}
 	
