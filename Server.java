@@ -74,12 +74,23 @@ public class Server {
 			priv = keyPair.getPrivate();
 
             //Save the keys to files
+			File directory = new File("ServerDir");
+			if(! directory.exists())
+					directory.mkdir();
+			
             X509EncodedKeySpec x509EncodedKeySpec = new X509EncodedKeySpec(pub.getEncoded());
             FileOutputStream fos = new FileOutputStream("ServerDir/pubkey");
             fos.write(x509EncodedKeySpec.getEncoded());
             fos.close();
+            
+            PKCS8EncodedKeySpec pkcs8EncodedKeySpec = new PKCS8EncodedKeySpec(
+    				priv.getEncoded());
+    		fos = new FileOutputStream("ServerDir/privkey");
+    		fos.write(pkcs8EncodedKeySpec.getEncoded());
+    		fos.close();
+    		
 			System.out.println("Key Pair Generation: SUCCESS");
-		} catch (NoSuchAlgorithmException|IOException e) {
+		} catch (NoSuchAlgorithmException | IOException e) {
 			System.out.println("Key Pair Generation: FAIL");
 		}
 	}

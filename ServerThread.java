@@ -7,6 +7,7 @@ import javax.crypto.*;
 import java.nio.file.*;
 import java.security.*;
 import java.security.spec.InvalidKeySpecException;
+import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 
 public class ServerThread extends Thread{
@@ -14,7 +15,7 @@ public class ServerThread extends Thread{
 	private Socket socket;
 	private DataInputStream input;
 	private DataOutputStream output;
-	
+
 	private PublicKey cli_pubkey;
 	private PublicKey server_pubkey;
 	private PrivateKey server_privkey;
@@ -47,8 +48,10 @@ public class ServerThread extends Thread{
 		try{
 
 			prepareCommunication();
+			tradeKeys();
+			/*ERASE THIS*/ASSTEST();
 			loadHashMaps();	
-				
+
 			String msg_rcv = rcvMsg();
 			String msg_sent = "NO";
 			String[] msg = msg_rcv.split(delim);
@@ -95,69 +98,150 @@ public class ServerThread extends Thread{
 		}		
 	}
 
+
+	/*ERASE THIS*/private void ASSTEST() {
+		try{
+			
+			/*System.out.println("Small test...");
+			cipher.init(Cipher.ENCRYPT_MODE, server_pubkey);
+			byte[] aux = cipher.doFinal("hello".getBytes("UTF-8"));
+			System.out.println(new String(aux, "UTF-8"));
+			cipher.init(Cipher.DECRYPT_MODE, server_privkey);
+			byte[] aux2 = cipher.doFinal(aux);
+			System.out.println(new String(aux2, "UTF-8"));*/
+			
+			System.out.println("Waiting for dat ass...");
+			byte[] rcvd = new byte[input.readInt()];
+			input.readFully(rcvd);
+			System.out.println("Received message!");
+
+			System.out.println("Encrypted");
+			System.out.println(new String(rcvd, "UTF-8"));
+			cipher.init(Cipher.DECRYPT_MODE, server_privkey);
+			byte[] result = cipher.doFinal(rcvd);
+			System.out.println("Original: "+ new String(result, "UTF-8"));
+
+			String msg = "TENOUTTATEN, would tap!";
+			System.out.println("Imma say this...");
+			cipher.init(Cipher.ENCRYPT_MODE, cli_pubkey);
+			result = cipher.doFinal(msg.getBytes("UTF-8"));
+			System.out.println("Original: "+ msg);
+			System.out.println("Encrypted: "+ new String(result, "UTF-8"));
+
+			System.out.println("Sending Message...");
+			output.writeInt(result.length);
+			output.write(result);
+			output.flush();
+			System.out.println("Sent!");
+		} catch (IllegalBlockSizeException | BadPaddingException 
+				| InvalidKeyException | IOException e) {
+			e.printStackTrace();
+		}
+	}
+
 	//Loads hashmaps if they exists, sets up input and output channels with server
 	private void prepareCommunication() throws IOException{
 		System.out.println("Creating Communication Channels...");
-		input = new DataInputStream(new BufferedInputStream (socket.getInputStream()));
-		output = new DataOutputStream( new BufferedOutputStream (socket.getOutputStream()));
-		System.out.println("Channels Created!");
-		
-		/*
-		//###DRAFT_BEGIN###
-			//receive client public key
-            try {
-                byte[] aux = new byte[16 * 1024];
-                FileOutputStream fos = new FileOutputStream("ServerDir/" + Thread.currentThread().getId() + "_pubkey");
+		input = new DataInputStream(socket.getInputStream());
+		output = new DataOutputStream (socket.getOutputStream());
+		System.out.println("Channels Created!");	
 
-                int count;
-                while((count = input.read(aux)) > 0) {
-                    fos.write(aux, 0, count);
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
 
-            //Load client public key
-            try{
-                File filePublicKey = new File("ServerDir/" + Thread.currentThread().getId() + "_pubkey");
-                FileInputStream fis = new FileInputStream("ServerDir/" + Thread.currentThread().getId() + "_pubkey");
-                byte[] encodedPublicKey = new byte[(int) filePublicKey.length()];
-                fis.read(encodedPublicKey);
-                fis.close();
+		try {
+			cipher = Cipher.getInstance("RSA");
 
-                KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-                X509EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(encodedPublicKey);
-                cli_pubkey = keyFactory.generatePublic(publicKeySpec);
-            } catch (IOException | NoSuchAlgorithmException | InvalidKeySpecException e) {
-                e.printStackTrace();
-            }
-*/
+			System.out.println("Getting Public Key from folder");
+			// Read Public Key.
+			File filePublicKey = new File("ServerDir/pubkey");
+			FileInputStream fis = new FileInputStream("ServerDir/pubkey");
+			byte[] encodedPublicKey = new byte[(int) filePublicKey.length()];
+			fis.read(encodedPublicKey);
+			fis.close();
+
+			System.out.println("Getting Private Key from folder");
+			// Read Private Key.
+			File filePrivateKey = new File("ServerDir/privkey");
+			fis = new FileInputStream("ServerDir/privkey");
+			byte[] encodedPrivateKey = new byte[(int) filePrivateKey.length()];
+			fis.read(encodedPrivateKey);
+			fis.close();
+
+			// Generate KeyPair.
+			KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+			X509EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(
+					encodedPublicKey);
+			server_pubkey = keyFactory.generatePublic(publicKeySpec);
 			
-			//create dir
-			File directory = new File("ServerDir");
-			if(! directory.exists())
-					directory.mkdir();
-				
-            File server_pubkeyfile = new File("ServerDir/pubkey");
-            FileInputStream fis = new FileInputStream("ServerDir/pubkey");
-            byte[] server_encodedpubkey = new byte[(int) server_pubkeyfile.length()];
-            fis.read(server_encodedpubkey);
-            fis.close();
-			System.out.println("Sending Server Public Key: " + server_encodedpubkey);
+			PKCS8EncodedKeySpec privateKeySpec = new PKCS8EncodedKeySpec(
+					encodedPrivateKey);
+			server_privkey = keyFactory.generatePrivate(privateKeySpec);
+			
+		} catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeySpecException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
+
+		
+
+	}
+
+	private void tradeKeys() {
+		try {
+			System.out.println("Receiving Public Key from Client");
+			byte[] encoded_pubkey = new byte[input.readInt()];
+			input.readFully(encoded_pubkey);
+			FileOutputStream fos = new FileOutputStream("ServerDir/" + Thread.currentThread().getId() + "_pubkey");
+			fos.write(encoded_pubkey);
+			fos.close();
+			System.out.println("Encoded Key Received");
+			System.out.println(new String(encoded_pubkey, "UTF-8"));
+
+			/* System.out.println("Converting Encoded Key to Public Key");
+            FileInputStream fis = new FileInputStream("ServerDir/" + Thread.currentThread().getId() + "_pubkey");
+            byte[] keyBytes = new byte[fis.available()];
+            fis.read(keyBytes);
+            fis.close();*/
+
+			KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+			X509EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(encoded_pubkey);
+			cli_pubkey = keyFactory.generatePublic(publicKeySpec);
+			System.out.println("Key Converted!");
+
+			System.out.println("Getting Server Public Key from File...");
+			//File server_pubkeyfile = new File("ServerDir/pubkey");
+			FileInputStream fis = new FileInputStream("ServerDir/pubkey");
+			byte[] server_encodedpubkey = new byte[fis.available()];
+			fis.read(server_encodedpubkey);
+			fis.close();
+
+			System.out.println("Sending Server Public Key");
+			System.out.println(new String(server_encodedpubkey,"UTF-8"));
+			output.writeInt(server_encodedpubkey.length);
 			output.write(server_encodedpubkey);
-            output.flush();
+			output.flush();
 			System.out.println("Sent Server Public Key");
 
-		//###DRAFT_END###
-		
-		//TODO: fix this
-		try {
-			Cipher cipher = Cipher.getInstance("RSA");
-		} catch (NoSuchAlgorithmException | NoSuchPaddingException e) {
-			// TODO Auto-generated catch block
+			System.out.println("KEY CHECK");
+			System.out.println("SERVER PUBLIC: " + new String(server_pubkey.getEncoded(), "UTF-8"));
+			System.out.println("CLIENT PUBLIC: " + new String(cli_pubkey.getEncoded(), "UTF-8"));
+		} catch (IOException | NoSuchAlgorithmException | InvalidKeySpecException e) {
 			e.printStackTrace();
 		}
-	}	
+
+		/* //Load client public key
+        try{
+            File filePublicKey = new File("ServerDir/" + Thread.currentThread().getId() + "_pubkey");
+            FileInputStream fis = new FileInputStream("ServerDir/" + Thread.currentThread().getId() + "_pubkey");
+            byte[] encodedPublicKey = new byte[(int) filePublicKey.length()];
+            fis.read(encodedPublicKey);
+            fis.close();
+            KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+            X509EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(encodedPublicKey);
+            cli_pubkey = keyFactory.generatePublic(publicKeySpec);
+        } catch (IOException | NoSuchAlgorithmException | InvalidKeySpecException e) {
+            e.printStackTrace();
+        }*/
+	}
 
 	//Verify if sign up or login operation
 	//return true if connection established
@@ -209,9 +293,9 @@ public class ServerThread extends Thread{
 				System.out.println("Sent: " + msg_sent);
 				break;
 			}
-			
+
 			return result;
-			
+
 		} catch(IOException e) {
 			e.printStackTrace();
 			return false;
@@ -313,21 +397,21 @@ public class ServerThread extends Thread{
 		try {
 
 			while(true) {
-				
+
 				System.out.println("Listening to App...");
-				
+
 				String msg_rcv = input.readLine();
 				String[] msg = msg_rcv.split(delim);
 				String msg_sent = "NO";
 				System.out.println(msg_rcv);
-				
+
 				switch(msg[0]) {
-				
+
 				case "LIST" :
 					System.out.println("Sending beacons that user owns...");
 					loadHashMaps();
 					printHashMaps();
-					
+
 					if(appBeacons.containsKey(clientID)) {
 						ArrayList<String> list = appBeacons.get(clientID);
 						msg_sent = "";
@@ -339,12 +423,12 @@ public class ServerThread extends Thread{
 					} else {
 						System.out.println("No elements in list...");
 					}
-					
+
 					System.out.println(msg_sent);
 					output.writeBytes(msg_sent + '\n');
 					break;
-				
-				//case to add a new beacon				
+
+					//case to add a new beacon				
 				case "ADD":
 					//ADD_BEACONID_BEACONPASS
 					System.out.println("App trying to add beacon: " + msg[1]);
@@ -388,7 +472,7 @@ public class ServerThread extends Thread{
 
 					//TODO REMOVE
 					printHashMaps();
-					
+
 					output.writeBytes(msg_sent + '\n');
 					break;
 
@@ -420,59 +504,59 @@ public class ServerThread extends Thread{
 	}
 
 	//#################################CIPHER OPERATIONS#############################################
-    private void sendMsg(String msg) {
-        //TODO: Add counter, signature, SALT(?), etc...
-        try {
-            byte[] send_msg = encrypt(msg);
-            output.writeInt(send_msg.length);
-            output.write(send_msg);
-            System.out.println("Send Message: SUCCESS");
-        } catch (IOException e) {
-            System.out.println("Send Message: FAIL");
-        }
-    }
+	private void sendMsg(String msg) {
+		//TODO: Add counter, signature, SALT(?), etc...
+		try {
+			byte[] send_msg = encrypt(msg);
+			output.writeInt(send_msg.length);
+			output.write(send_msg);
+			System.out.println("Send Message: SUCCESS");
+		} catch (IOException e) {
+			System.out.println("Send Message: FAIL");
+		}
+	}
 
-    private String rcvMsg() {
-        String msg = "";
-        //TODO: confirm counter, signature and isolate the message
-        try {
-            byte[] rcvd_msg = new byte[input.readInt()];
-            input.readFully(rcvd_msg);
-            msg = decrypt(rcvd_msg);
-            System.out.println("Receive Message: SUCCESS");
-        } catch (IOException e) {
-            System.out.println("Receive Message: FAIL");
-        }
-        return msg;
-    }
+	private String rcvMsg() {
+		String msg = "";
+		//TODO: confirm counter, signature and isolate the message
+		try {
+			byte[] rcvd_msg = new byte[input.readInt()];
+			input.readFully(rcvd_msg);
+			msg = decrypt(rcvd_msg);
+			System.out.println("Receive Message: SUCCESS");
+		} catch (IOException e) {
+			System.out.println("Receive Message: FAIL");
+		}
+		return msg;
+	}
 
-    private byte[] encrypt(String msg) {
-        byte[] result = null;
-        try {
-            cipher.init(Cipher.ENCRYPT_MODE, server_pubkey);
-            result = cipher.doFinal(msg.getBytes("UTF-8"));
-            System.out.println("Encrypted message: " + new String(result, "UTF-8"));
-        } catch (InvalidKeyException | UnsupportedEncodingException | IllegalBlockSizeException
-                | BadPaddingException e) {
-            System.out.println("Encryption: FAILED");
-        }
-        return result;
-    }
+	private byte[] encrypt(String msg) {
+		byte[] result = null;
+		try {
+			cipher.init(Cipher.ENCRYPT_MODE, server_pubkey);
+			result = cipher.doFinal(msg.getBytes("UTF-8"));
+			System.out.println("Encrypted message: " + new String(result, "UTF-8"));
+		} catch (InvalidKeyException | UnsupportedEncodingException | IllegalBlockSizeException
+				| BadPaddingException e) {
+			System.out.println("Encryption: FAILED");
+		}
+		return result;
+	}
 
-    private String decrypt(byte[] msg) {
-        String result = "";
-        try {
-            cipher.init(Cipher.DECRYPT_MODE, server_privkey);
-            byte[] aux = cipher.doFinal(msg);
-            result = new String(aux, "UTF-8");
-            System.out.println("Decrypted message: " + result);
-        } catch (InvalidKeyException | UnsupportedEncodingException | IllegalBlockSizeException
-                | BadPaddingException e) {
-            System.out.println("Decryption: FAILED");
-        }
-        return result;
-    }
-	
+	private String decrypt(byte[] msg) {
+		String result = "";
+		try {
+			cipher.init(Cipher.DECRYPT_MODE, server_privkey);
+			byte[] aux = cipher.doFinal(msg);
+			result = new String(aux, "UTF-8");
+			System.out.println("Decrypted message: " + result);
+		} catch (InvalidKeyException | UnsupportedEncodingException | IllegalBlockSizeException
+				| BadPaddingException e) {
+			System.out.println("Decryption: FAILED");
+		}
+		return result;
+	}
+
 	//#################################HASH-MAPS#####################################################
 	private void loadHashMaps() {
 		final String dir = System.getProperty("user.dir");
@@ -525,7 +609,7 @@ public class ServerThread extends Thread{
 			e.printStackTrace();
 		}
 	}
-	
+
 	private void printHashMaps () {
 		System.out.println("######BEACON'S HASHMAP######");  
 		for (String name: beaconHashMap.keySet()){
