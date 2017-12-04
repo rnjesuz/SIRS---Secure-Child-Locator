@@ -222,6 +222,23 @@ public class ServerThread extends Thread{
 		}
 	}
 
+    private String hashPasswordSHA512 (String password, String salt) {
+        String hashedPass = null;
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-512");
+            md.update(salt.getBytes("UTF-8"));
+            byte[] bytes = md.digest(password.getBytes("UTF-8"));
+            StringBuilder sb = new StringBuilder();
+            for(int i = 0; i < bytes.length; i++) {
+                sb.append(Integer.toString((bytes[i] & 0xff) + 0x100, 16).substring(1));
+            }
+            hashedPass = sb.toString();
+        } catch (NoSuchAlgorithmException | UnsupportedEncodingException e) {
+            e.printStackTrace();
+        }
+        return hashedPass;
+    }
+
 
 	//Verify if sign up or login operation
 	//return true if connection established
@@ -297,7 +314,8 @@ public class ServerThread extends Thread{
 				//Check if Beacon is not registered else check if password matches up
 				//if Password matches, allow access, else deny it
 				if(!beaconHashMap.containsKey(msg[2])) {
-					beaconHashMap.put(msg[2], msg[3]);
+                    String hashedPass = hashPasswordSHA512(msg[3], msg[2]); //hashes password using username as salt
+					beaconHashMap.put(msg[2], hashedPass);
 					saveStatus(beaconHashMap, BCN_HM_PATH);
 					System.out.println("New account created");
 					clientID = msg[2];

@@ -18,6 +18,7 @@ import java.security.InvalidKeyException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
@@ -173,6 +174,23 @@ public class Client {
         }
     }
 
+    private String hashPasswordSHA512 (String password, String salt) {
+        String hashedPass = null;
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-512");
+            md.update(salt.getBytes("UTF-8"));
+            byte[] bytes = md.digest(password.getBytes("UTF-8"));
+            StringBuilder sb = new StringBuilder();
+            for(int i = 0; i < bytes.length; i++) {
+                sb.append(Integer.toString((bytes[i] & 0xff) + 0x100, 16).substring(1));
+            }
+            hashedPass = sb.toString();
+        } catch (NoSuchAlgorithmException | UnsupportedEncodingException e) {
+            Log.d("CLIENT", "Password wasn't hashed");
+        }
+        return hashedPass;
+    }
+
     public void login(String email, String password) throws ConnectionFailedException,
             IncorrectPasswordException, AccountDoesntExistException {
         String msg;
@@ -244,7 +262,8 @@ public class Client {
 
         try {
             Log.d("CLIENT", "Adding Beacon " + id);
-            output.writeBytes("ADD" + delim + id + delim + pass + '\n');
+            String hashedPass = hashPasswordSHA512(pass, id);
+            output.writeBytes("ADD" + delim + id + delim + hashedPass + '\n');
             msg = input.readLine();
         } catch (IOException e) {
             Log.d("CLIENT", e.getMessage());
