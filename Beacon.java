@@ -4,13 +4,10 @@ import java.net.Socket;
 import javax.crypto.*;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
-import java.security.spec.*;
-import javax.crypto.spec.PBEKeySpec;
-
-import java.nio.file.*;
 import java.security.*;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.X509EncodedKeySpec;
+import java.util.Arrays;
 
 // main class
 // it's purpose is to create an instance of Beacon
@@ -35,10 +32,14 @@ class BeaconClass {
 	private DataInputStream socketIn;
 	private DataOutputStream socketOut;
 
+	//asymmetric
 	private PublicKey pub;
 	private PrivateKey priv;
 	private PublicKey server_pub;
-	private Cipher cipher;
+
+	//symmetric
+	private byte[] iv;
+	private SecretKey sk;
 
 
 	//Constructors
@@ -103,62 +104,9 @@ class BeaconClass {
 		generateKeyPair();
 		ConnectToServer();
 		tradeKeys();
-
-		/*ERASE THIS*/ASSTEST();
-		/*SignUp();
-
-		try{
-			//PROBLEMS HERE
-			byte[] received = null;
-			socketIn.read(received);
-			System.out.println(received);
-			if(received.equals("OK"))			
-				ImAliveCicle();
-		} catch(IOException e){
-			e.printStackTrace();
-		}*/
-	}
-
-	/*ERASE THIS*/
-	private void ASSTEST() {
-		try{
-			/*System.out.println("Small test...");
-			cipher.init(Cipher.ENCRYPT_MODE, pub);
-			byte[] aux = cipher.doFinal("hello".getBytes("UTF-8"));
-			System.out.println(new String(aux, "UTF-8"));
-			cipher.init(Cipher.DECRYPT_MODE, priv);
-			byte[] aux2 = cipher.doFinal(aux);
-			System.out.println(new String(aux2, "UTF-8"));*/
-			
-			
-			System.out.println("Welcome to the ASS test...");
-			String msg = "How good is my ass?";
-			cipher.init(Cipher.ENCRYPT_MODE, server_pub);
-			byte[] result = cipher.doFinal(msg.getBytes("UTF-8"));
-			System.out.println("Original: "+ msg);
-			System.out.println("Encrypted");
-			System.out.println(new String(result, "UTF-8"));
-			
-			System.out.println("Sending Message...");
-			socketOut.writeInt(result.length);
-			socketOut.write(result);
-			socketOut.flush();
-			System.out.println("Sent!");
-			
-			System.out.println("Waiting for response...");
-			byte[] rcvd = new byte[socketIn.readInt()];
-			socketIn.readFully(rcvd);
-			System.out.println("Received message!");
-			
-			System.out.println("Encrypted: ");
-			System.out.println(new String(rcvd, "UTF-8"));
-			cipher.init(Cipher.DECRYPT_MODE, priv);
-			result = cipher.doFinal(rcvd);
-			System.out.println("Original: "+ new String(result, "UTF-8"));			
-		} catch (IllegalBlockSizeException | BadPaddingException 
-				| InvalidKeyException | IOException e) {
-			e.printStackTrace();
-		}
+		rcvSessionKey();
+		SignUp();
+		ImAliveCicle();
 	}
 
 	private void generateKeyPair() {
@@ -166,7 +114,6 @@ class BeaconClass {
 		KeyPairGenerator keyPairGenerator = null;
 
 		try {
-			cipher = Cipher.getInstance("RSA");
 
 			keyPairGenerator = KeyPairGenerator.getInstance("RSA");
 			keyPairGenerator.initialize(1024);
@@ -184,7 +131,7 @@ class BeaconClass {
 			fos.write(x509EncodedKeySpec.getEncoded());
 			fos.close();
 			System.out.println("Key Pair Generation: SUCCESS");
-		} catch (NoSuchAlgorithmException|IOException | NoSuchPaddingException e) {
+		} catch (NoSuchAlgorithmException|IOException e) {
 			System.out.println("Key Pair Generation: FAIL");
 		}
 	}
@@ -207,7 +154,6 @@ class BeaconClass {
 	private void tradeKeys() {
 		try {
 			//get public key from file
-			//File beacon_pubkeyfile = new File("BeaconDir/pubkey");
 			FileInputStream fis = new FileInputStream("BeaconDir/pubkey");
 			byte[] beacon_encodedpubkey = new byte[fis.available()];
 			fis.read(beacon_encodedpubkey);
@@ -223,7 +169,6 @@ class BeaconClass {
 
 			//get server public key from server
 			System.out.println("Getting server public key");
-			//File server_pubkeyfile = new File("BeaconDir/serverpubkey");
 			FileOutputStream fos = new FileOutputStream("BeaconDir/serverpubkey");
 			byte[] server_encodedpubkey = new byte[socketIn.readInt()];
 			socketIn.readFully(server_encodedpubkey);
@@ -237,10 +182,6 @@ class BeaconClass {
 			X509EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(server_encodedpubkey);
 			server_pub = keyFactory.generatePublic(publicKeySpec);
 			System.out.println("Server Public Key saved");
-			
-			System.out.println("KEY CHECK");
-			System.out.println("SERVER PUBLIC: " + new String(server_pub.getEncoded(), "UTF-8"));
-			System.out.println("CLIENT PUBLIC: " + new String(pub.getEncoded(), "UTF-8"));
 
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -251,67 +192,42 @@ class BeaconClass {
 		}
 	}
 
-
-
-	/*private void prepareCommunication(){
-		//Send server public key
+	private void rcvSessionKey() {
+		
 		try {
-            File beacon_pubkeyfile = new File("BeaconDir/pubkey");
-            FileInputStream fis = new FileInputStream("BeaconDir/pubkey");
-            byte[] beacon_encodedpubkey = new byte[(int) beacon_pubkeyfile.length()];
-            fis.read(beacon_encodedpubkey);
-            fis.close();
-            System.out.println("Sending Beacon Public Key: " + beacon_encodedpubkey);
-            socketOut.write(beacon_encodedpubkey);
-            socketOut.flush();
-            System.out.println("Sent Beacon Public Key");
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-		//Get server public key
-		try {
-			System.out.println("Getting server pub Key");
-
-			//create dir
-			File directory = new File("BeaconDir");
-			if(! directory.exists())
-				directory.mkdir();
-
-			FileOutputStream fos = new FileOutputStream("BeaconDir/server_pubkey");
-
-			int count;
-			byte[] aux = new byte[16 * 1024];
-			while((count = socketIn.read(aux)) > 0) {
-				fos.write(aux, 0, count);
-			}
-			fos.close();
+			int ivSize = 16; 
+			byte[] msg = new byte[socketIn.readInt()];
+			socketIn.readFully(msg);
+			
+			//NOTE: msg = iv + {sk}pub
+			
+			//get iv from msg
+			iv = new byte[ivSize];
+			System.arraycopy(msg,  0, iv, 0, ivSize);
+			
+			//get key from message
+			byte[] encrypted = new byte[msg.length - ivSize];
+			System.arraycopy(msg, ivSize, encrypted, 0, encrypted.length);
+			sk = new SecretKeySpec(decrypt(encrypted, "RSA"), "AES");
+			
+			System.out.println("IV: " + new String(iv, "UTF-8"));
+			System.out.println("Session Key: " + new String(sk.getEncoded(), "UTF-8"));
+			
+			//SEND ACK
+			sendMsg("OK".getBytes("UTF-8"), "AES");	
+			
 		} catch (IOException e) {
+			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-
-		//Load server public key
-		try{
-			System.out.println("Loading server pub Key");
-
-			File filePublicKey = new File("BeaconDir/server_pubkey");
-			FileInputStream fis = new FileInputStream("BeaconDir/server_pubkey");
-			byte[] encodedPublicKey = new byte[(int) filePublicKey.length()];
-			fis.read(encodedPublicKey);
-			fis.close();
-
-			KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-			X509EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(encodedPublicKey);
-			server_pub = keyFactory.generatePublic(publicKeySpec);
-		} catch (IOException | NoSuchAlgorithmException | InvalidKeySpecException e) {
-			e.printStackTrace();
-		}
-	}*/
+	}
 
 	private void SignUp() {
 		System.out.println("Signing Up");
 		try {
-			socketOut.writeBytes("BEACON_SIGNUP_" + getUsername() + "_" + getPassword() + '\n');
+			String msg = "BEACON_SIGNUP_" + getUsername() + "_" + getPassword();
+			sendMsg(msg.getBytes("UTF-8"), "AES");
+			rcvMsg("AES");
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -323,11 +239,11 @@ class BeaconClass {
 			try {
 				//TODO change to a proper coordinates system
 				String istCoords = "38.736685_-9.138619";  // latitude/longitude of IST. to simulate real coordinates
-				socketOut.writeBytes("COORDS_" + istCoords + '\n');
+				String msg = "COORDS_" + istCoords;
+				sendMsg(msg.getBytes("UTF-8"), "AES");
 
-				byte[] received = null;
-				socketIn.read(received);
-				System.out.println(received);
+				byte[] received = rcvMsg("AES");
+				System.out.println(new String(received, "UTF-8"));
 				//sleep for 10 seconds
 				Thread.sleep(10000);
 			} catch (IOException e) {
@@ -335,11 +251,122 @@ class BeaconClass {
 			} catch (InterruptedException e){
 				e.printStackTrace();
 			}	
-
 		}
 	}
 
-	private byte[] cipherAES(String text){
+	//#############################ENCRYPTION-DECRYPTION OPERATIONS#############################
+
+	private void sendMsg(byte[] msg, String type) {
+		//TODO: Add counter, signature, SALT(?), etc...
+		try {
+			System.out.println("Message: " + new String(msg, "UTF-8"));
+			byte[] send_msg = encrypt(msg, type);
+			socketOut.writeInt(send_msg.length);
+			socketOut.write(send_msg);
+			
+			System.out.println("Message Sent: ");
+			System.out.println(new String(send_msg, "UTF-8"));
+
+		} catch (IOException e) {
+			System.out.println("Send Message: FAIL");
+		}
+	}
+
+	private byte[] rcvMsg(String type) {
+		byte[] msg = null;
+		//TODO: confirm counter, signature and isolate the message
+		try {
+			byte[] rcvd_msg = new byte[socketIn.readInt()];
+			socketIn.readFully(rcvd_msg);
+			
+			System.out.println("Message Received: ");
+			System.out.println(new String(rcvd_msg, "UTF-8"));
+			
+			msg = decrypt(rcvd_msg, type);
+			System.out.println("Decrypted Received Message: " + new String(msg, "UTF-8"));			
+		} catch (IOException e) {
+			System.out.println("Receive Message: FAIL");
+		}
+		return msg;
+	}
+
+	private byte[] encrypt(byte[] msg, String type) {
+		byte[] result = null;
+
+		switch(type) {
+		case"RSA":
+			try {
+				Cipher cipher = Cipher.getInstance("RSA");
+				cipher.init(Cipher.ENCRYPT_MODE, server_pub);
+				result = cipher.doFinal(msg);
+			} catch (InvalidKeyException | IllegalBlockSizeException
+					| BadPaddingException | NoSuchAlgorithmException | NoSuchPaddingException e) {
+				System.out.println("Encryption: FAILED");
+				e.printStackTrace();
+			}
+			break;
+
+		case"AES":
+			try {
+				Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+				cipher.init(Cipher.ENCRYPT_MODE, sk, new IvParameterSpec(iv));
+				result = cipher.doFinal(msg);
+			
+				//generateIV for next communication
+				generateIV(result);
+				
+			} catch (InvalidKeyException | InvalidAlgorithmParameterException 
+					| NoSuchAlgorithmException | NoSuchPaddingException 
+					| IllegalBlockSizeException | BadPaddingException e) {
+				e.printStackTrace();
+			}
+			break;
+		}
+		return result;
+	}
+
+	private byte[] decrypt(byte[] msg, String type) {
+		byte[] result = null;
+
+		switch(type) {
+		case"RSA":
+			try {
+				Cipher cipher = Cipher.getInstance("RSA");
+				cipher.init(Cipher.DECRYPT_MODE, priv);
+				result = cipher.doFinal(msg);
+			} catch (InvalidKeyException | IllegalBlockSizeException
+					| BadPaddingException | NoSuchAlgorithmException 
+					| NoSuchPaddingException e) {
+				System.out.println("Decryption: FAILED");
+				e.printStackTrace();
+			}
+			break;
+
+		case"AES":
+			try {
+				Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+				cipher.init(Cipher.DECRYPT_MODE, sk, new IvParameterSpec(iv));
+				result = cipher.doFinal(msg);
+				
+				//generateIV for next communication
+				generateIV(msg);
+				
+			} catch (InvalidKeyException | InvalidAlgorithmParameterException 
+					| NoSuchAlgorithmException | NoSuchPaddingException 
+					| IllegalBlockSizeException | BadPaddingException e) {
+				e.printStackTrace();
+			}
+			break;
+		}
+
+		return result;
+	}
+	
+	private void generateIV(byte[] msg) {
+		iv = Arrays.copyOfRange(msg, 0, 16);
+	}
+
+	/*private byte[] cipherAES(String text){
 
 		byte[] cipherText = null;
 		try{
@@ -398,6 +425,5 @@ class BeaconClass {
 			e.printStackTrace();
 		}
 	}
-
-
+	 */
 }

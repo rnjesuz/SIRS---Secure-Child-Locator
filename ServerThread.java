@@ -3,6 +3,7 @@ import java.net.*;
 import java.util.*;
 
 import javax.crypto.*;
+import javax.crypto.spec.IvParameterSpec;
 
 import java.nio.file.*;
 import java.security.*;
@@ -19,7 +20,8 @@ public class ServerThread extends Thread{
 	private PublicKey cli_pubkey;
 	private PublicKey server_pubkey;
 	private PrivateKey server_privkey;
-	private Cipher cipher;
+	private byte[] iv = new byte[0];
+	private SecretKey sk;
 
 	//map of every appID and its key
 	private HashMap<String, String> userHashMap = new HashMap<String, String>();
@@ -49,10 +51,12 @@ public class ServerThread extends Thread{
 
 			prepareCommunication();
 			tradeKeys();
-			/*ERASE THIS*/ASSTEST();
+			generateSessionKey();
+			sendSessionKey();
+			
 			loadHashMaps();	
 
-			String msg_rcv = rcvMsg();
+			String msg_rcv = new String(rcvMsg("AES"), "UTF-8");
 			String msg_sent = "NO";
 			String[] msg = msg_rcv.split(delim);
 
@@ -66,7 +70,7 @@ public class ServerThread extends Thread{
 						appListen();
 					}
 				} else {
-					sendMsg(msg_sent);
+					//sendMsg(msg_sent);
 					System.out.println("Access Denied!");
 				}
 				break;
@@ -75,8 +79,6 @@ public class ServerThread extends Thread{
 				if(msg.length == 4){
 					if(beaconInitialConnection(msg)) {
 						System.out.println("Connection with Beacon established!");
-						//TODO REMOVE
-						printHashMaps();
 						beaconListen();
 					}
 				} else {
@@ -98,47 +100,6 @@ public class ServerThread extends Thread{
 		}		
 	}
 
-
-	/*ERASE THIS*/private void ASSTEST() {
-		try{
-			
-			/*System.out.println("Small test...");
-			cipher.init(Cipher.ENCRYPT_MODE, server_pubkey);
-			byte[] aux = cipher.doFinal("hello".getBytes("UTF-8"));
-			System.out.println(new String(aux, "UTF-8"));
-			cipher.init(Cipher.DECRYPT_MODE, server_privkey);
-			byte[] aux2 = cipher.doFinal(aux);
-			System.out.println(new String(aux2, "UTF-8"));*/
-			
-			System.out.println("Waiting for dat ass...");
-			byte[] rcvd = new byte[input.readInt()];
-			input.readFully(rcvd);
-			System.out.println("Received message!");
-
-			System.out.println("Encrypted");
-			System.out.println(new String(rcvd, "UTF-8"));
-			cipher.init(Cipher.DECRYPT_MODE, server_privkey);
-			byte[] result = cipher.doFinal(rcvd);
-			System.out.println("Original: "+ new String(result, "UTF-8"));
-
-			String msg = "TENOUTTATEN, would tap!";
-			System.out.println("Imma say this...");
-			cipher.init(Cipher.ENCRYPT_MODE, cli_pubkey);
-			result = cipher.doFinal(msg.getBytes("UTF-8"));
-			System.out.println("Original: "+ msg);
-			System.out.println("Encrypted: "+ new String(result, "UTF-8"));
-
-			System.out.println("Sending Message...");
-			output.writeInt(result.length);
-			output.write(result);
-			output.flush();
-			System.out.println("Sent!");
-		} catch (IllegalBlockSizeException | BadPaddingException 
-				| InvalidKeyException | IOException e) {
-			e.printStackTrace();
-		}
-	}
-
 	//Loads hashmaps if they exists, sets up input and output channels with server
 	private void prepareCommunication() throws IOException{
 		System.out.println("Creating Communication Channels...");
@@ -148,9 +109,8 @@ public class ServerThread extends Thread{
 
 
 		try {
-			cipher = Cipher.getInstance("RSA");
-
 			System.out.println("Getting Public Key from folder");
+
 			// Read Public Key.
 			File filePublicKey = new File("ServerDir/pubkey");
 			FileInputStream fis = new FileInputStream("ServerDir/pubkey");
@@ -171,18 +131,15 @@ public class ServerThread extends Thread{
 			X509EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(
 					encodedPublicKey);
 			server_pubkey = keyFactory.generatePublic(publicKeySpec);
-			
+
 			PKCS8EncodedKeySpec privateKeySpec = new PKCS8EncodedKeySpec(
 					encodedPrivateKey);
 			server_privkey = keyFactory.generatePrivate(privateKeySpec);
-			
-		} catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeySpecException e1) {
+
+		} catch (NoSuchAlgorithmException | InvalidKeySpecException e1) {
 			// TODO Auto-generated catch block
 			e1.printStackTrace();
 		}
-
-		
-
 	}
 
 	private void tradeKeys() {
@@ -196,19 +153,12 @@ public class ServerThread extends Thread{
 			System.out.println("Encoded Key Received");
 			System.out.println(new String(encoded_pubkey, "UTF-8"));
 
-			/* System.out.println("Converting Encoded Key to Public Key");
-            FileInputStream fis = new FileInputStream("ServerDir/" + Thread.currentThread().getId() + "_pubkey");
-            byte[] keyBytes = new byte[fis.available()];
-            fis.read(keyBytes);
-            fis.close();*/
-
 			KeyFactory keyFactory = KeyFactory.getInstance("RSA");
 			X509EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(encoded_pubkey);
 			cli_pubkey = keyFactory.generatePublic(publicKeySpec);
 			System.out.println("Key Converted!");
 
 			System.out.println("Getting Server Public Key from File...");
-			//File server_pubkeyfile = new File("ServerDir/pubkey");
 			FileInputStream fis = new FileInputStream("ServerDir/pubkey");
 			byte[] server_encodedpubkey = new byte[fis.available()];
 			fis.read(server_encodedpubkey);
@@ -221,27 +171,57 @@ public class ServerThread extends Thread{
 			output.flush();
 			System.out.println("Sent Server Public Key");
 
-			System.out.println("KEY CHECK");
-			System.out.println("SERVER PUBLIC: " + new String(server_pubkey.getEncoded(), "UTF-8"));
-			System.out.println("CLIENT PUBLIC: " + new String(cli_pubkey.getEncoded(), "UTF-8"));
 		} catch (IOException | NoSuchAlgorithmException | InvalidKeySpecException e) {
 			e.printStackTrace();
 		}
-
-		/* //Load client public key
-        try{
-            File filePublicKey = new File("ServerDir/" + Thread.currentThread().getId() + "_pubkey");
-            FileInputStream fis = new FileInputStream("ServerDir/" + Thread.currentThread().getId() + "_pubkey");
-            byte[] encodedPublicKey = new byte[(int) filePublicKey.length()];
-            fis.read(encodedPublicKey);
-            fis.close();
-            KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-            X509EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(encodedPublicKey);
-            cli_pubkey = keyFactory.generatePublic(publicKeySpec);
-        } catch (IOException | NoSuchAlgorithmException | InvalidKeySpecException e) {
-            e.printStackTrace();
-        }*/
 	}
+
+	private void generateSessionKey() {
+		try {
+			//generate key and IV
+			KeyGenerator generator = KeyGenerator.getInstance( "AES" );
+			sk = generator.generateKey();
+			
+		} catch (NoSuchAlgorithmException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}	
+	}
+
+	private void sendSessionKey() {		
+		
+		int ivSize = 16;
+		byte[] encrypted = encrypt(sk.getEncoded(), "RSA");
+		
+		generateIV(null);
+
+		byte[] msg = new byte[ivSize + encrypted.length];
+        System.arraycopy(iv, 0, msg, 0, ivSize);
+        System.arraycopy(encrypted, 0, msg, ivSize, encrypted.length);
+        
+        //NOTE: msg = iv + {sk}cli_pub
+        
+        try {
+        	output.writeInt(msg.length);
+            output.write(msg);
+            output.flush();
+            
+            System.out.println("IV: " + new String(iv, "UTF-8"));
+			System.out.println("Session Key: " + new String(sk.getEncoded(), "UTF-8"));
+			
+			msg = rcvMsg("AES");
+		    String response = new String(msg, "UTF-8");
+		    
+		    if(!response.equals("OK")) {
+		    	System.out.println("Response was not what was expected...");
+		    } else System.out.println("Session Key communication Established!");
+		    
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+
 
 	//Verify if sign up or login operation
 	//return true if connection established
@@ -270,7 +250,7 @@ public class ServerThread extends Thread{
 					System.out.println("Log in: FAIL->User not registered");
 					msg_sent = "NOT REGISTERED";
 				}
-				sendMsg(msg_sent);
+				//sendMsg(msg_sent);
 				break;
 
 			case "SIGNUP":
@@ -333,14 +313,9 @@ public class ServerThread extends Thread{
 					} else System.out.println("Wrong Password!");
 				}
 				break;
-
-			default:
-				output.writeBytes(msg_sent + '\n');
-				System.out.println("Sent: " + msg_sent);
-				break;
 			}
 
-			output.writeBytes(msg_sent + '\n');
+			sendMsg(msg_sent.getBytes("UTF-8"), "AES");
 			return result;
 
 		} catch(IOException e) {
@@ -358,14 +333,13 @@ public class ServerThread extends Thread{
 			System.out.println("Listening to Beacon...");
 
 			while(true) {
-				String msg_rcv = input.readLine();
-				String[] msg = msg_rcv.split(delim);
+				String[] msg = (new String(rcvMsg("AES"), "UTF-8")).split(delim);
 
 				switch(msg[0]) {
 
 				case "COORDS":
-					System.out.println("beacon sent " + msg[1] + " coordinates");
-					output.writeBytes("RECEIVED\n");
+					//System.out.println("beacon sent " + msg[1] + " " + msg[2] + " coordinates");
+					sendMsg("RECEIVED".getBytes("UTF-8"),"AES");
 
 					//create directory to store coords
 					File directory = new File("Coordinates");
@@ -375,12 +349,14 @@ public class ServerThread extends Thread{
 					//new file if one doesn't already exist
 					File newFile = new File("Coordinates" + File.separator + clientID + ".txt");
 					newFile.createNewFile();
+					
 					//write to file
 					FileWriter fw = new FileWriter(newFile.getAbsoluteFile());
 					BufferedWriter bw = new BufferedWriter(fw);
-					bw.write(msg[1]);
+					bw.write(msg[1] + " " + msg[2]);
 					bw.close();
-
+					break;
+					
 				default:
 					break;
 				}
@@ -504,57 +480,118 @@ public class ServerThread extends Thread{
 	}
 
 	//#################################CIPHER OPERATIONS#############################################
-	private void sendMsg(String msg) {
+	private void sendMsg(byte[] msg, String type) {
 		//TODO: Add counter, signature, SALT(?), etc...
 		try {
-			byte[] send_msg = encrypt(msg);
+			System.out.println("Received Message: " + new String(msg, "UTF-8"));
+			
+			byte[] send_msg = encrypt(msg, type);
 			output.writeInt(send_msg.length);
 			output.write(send_msg);
-			System.out.println("Send Message: SUCCESS");
+			
+			System.out.println("Encrypted Message Sent: ");
+			System.out.println(new String(send_msg, "UTF-8"));
 		} catch (IOException e) {
 			System.out.println("Send Message: FAIL");
 		}
 	}
 
-	private String rcvMsg() {
-		String msg = "";
+	private byte[] rcvMsg(String type) {
+		byte[] msg = null;
 		//TODO: confirm counter, signature and isolate the message
 		try {
 			byte[] rcvd_msg = new byte[input.readInt()];
 			input.readFully(rcvd_msg);
-			msg = decrypt(rcvd_msg);
-			System.out.println("Receive Message: SUCCESS");
+			
+			System.out.println("Received Message: ");
+			System.out.println(new String(rcvd_msg, "UTF-8"));
+			
+			msg = decrypt(rcvd_msg, type);
+			System.out.println("Decrypted Message: " + new String(msg, "UTF-8"));
 		} catch (IOException e) {
 			System.out.println("Receive Message: FAIL");
 		}
 		return msg;
 	}
 
-	private byte[] encrypt(String msg) {
+	private byte[] encrypt(byte[] msg, String type) {
 		byte[] result = null;
-		try {
-			cipher.init(Cipher.ENCRYPT_MODE, server_pubkey);
-			result = cipher.doFinal(msg.getBytes("UTF-8"));
-			System.out.println("Encrypted message: " + new String(result, "UTF-8"));
-		} catch (InvalidKeyException | UnsupportedEncodingException | IllegalBlockSizeException
-				| BadPaddingException e) {
-			System.out.println("Encryption: FAILED");
+
+		switch(type) {
+		case"RSA":
+			try {
+				Cipher cipher = Cipher.getInstance("RSA");
+				cipher.init(Cipher.ENCRYPT_MODE, cli_pubkey);
+				result = cipher.doFinal(msg);
+			} catch (InvalidKeyException  | IllegalBlockSizeException
+					| BadPaddingException | NoSuchAlgorithmException | NoSuchPaddingException e) {
+				System.out.println("Encryption: FAILED");
+				e.printStackTrace();
+			}
+			break;
+
+		case"AES":
+			try {
+				Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+				cipher.init(Cipher.ENCRYPT_MODE, sk, new IvParameterSpec(iv));
+				result = cipher.doFinal(msg);
+				
+				//generateIV for next communication
+				generateIV(result);
+				
+			} catch (InvalidKeyException | InvalidAlgorithmParameterException 
+					| NoSuchAlgorithmException | NoSuchPaddingException 
+					| IllegalBlockSizeException | BadPaddingException e) {
+				e.printStackTrace();
+			}
+			break;
 		}
 		return result;
 	}
 
-	private String decrypt(byte[] msg) {
-		String result = "";
-		try {
-			cipher.init(Cipher.DECRYPT_MODE, server_privkey);
-			byte[] aux = cipher.doFinal(msg);
-			result = new String(aux, "UTF-8");
-			System.out.println("Decrypted message: " + result);
-		} catch (InvalidKeyException | UnsupportedEncodingException | IllegalBlockSizeException
-				| BadPaddingException e) {
-			System.out.println("Decryption: FAILED");
+	private byte[] decrypt(byte[] msg, String type) {
+		byte[] result = null;
+
+		switch(type) {
+		case"RSA":
+			try {
+				Cipher cipher = Cipher.getInstance("RSA");
+				cipher.init(Cipher.DECRYPT_MODE, server_privkey);
+				result = cipher.doFinal(msg);
+			} catch (InvalidKeyException | IllegalBlockSizeException
+					| BadPaddingException | NoSuchAlgorithmException 
+					| NoSuchPaddingException e) {
+				System.out.println("Decryption: FAILED");
+			}
+			break;
+		case"AES":
+			try {	
+				Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+				cipher.init(Cipher.DECRYPT_MODE, sk, new IvParameterSpec(iv));
+				result = cipher.doFinal(msg);
+				
+				//generateIV for next communication
+				generateIV(msg);
+				
+			} catch (InvalidKeyException | InvalidAlgorithmParameterException 
+					| NoSuchAlgorithmException | NoSuchPaddingException 
+					| IllegalBlockSizeException | BadPaddingException e) {
+				e.printStackTrace();
+			}
+			break;
 		}
+
 		return result;
+	}
+	
+	private void generateIV(byte[] msg) {
+		if(iv.length <= 0){
+			SecureRandom random = new SecureRandom();
+			iv = new byte [16];
+			random.nextBytes(iv);
+		} else {
+			 iv = Arrays.copyOfRange(msg, 0, 16);
+		}
 	}
 
 	//#################################HASH-MAPS#####################################################
@@ -630,4 +667,36 @@ public class ServerThread extends Thread{
 		}
 		System.out.println("######END######");  
 	}
+
+	/*//ERASETHIS
+	private void ASSTEST() {
+		try{			
+			System.out.println("Waiting for dat ass...");
+			byte[] rcvd = new byte[input.readInt()];
+			input.readFully(rcvd);
+			System.out.println("Received message!");
+
+			System.out.println("Encrypted");
+			System.out.println(new String(rcvd, "UTF-8"));
+			cipher.init(Cipher.DECRYPT_MODE, server_privkey);
+			byte[] result = cipher.doFinal(rcvd);
+			System.out.println("Original: "+ new String(result, "UTF-8"));
+
+			String msg = "TENOUTTATEN, would tap!";
+			System.out.println("Imma say this...");
+			cipher.init(Cipher.ENCRYPT_MODE, cli_pubkey);
+			result = cipher.doFinal(msg.getBytes("UTF-8"));
+			System.out.println("Original: "+ msg);
+			System.out.println("Encrypted: "+ new String(result, "UTF-8"));
+
+			System.out.println("Sending Message...");
+			output.writeInt(result.length);
+			output.write(result);
+			output.flush();
+			System.out.println("Sent!");
+		} catch (IllegalBlockSizeException | BadPaddingException 
+				| InvalidKeyException | IOException e) {
+			e.printStackTrace();
+		}
+	}*/
 }
