@@ -31,6 +31,7 @@ import android.widget.TextView;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.io.UnsupportedEncodingException;
 import java.net.Socket;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
@@ -321,6 +322,7 @@ public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<
             mEmail = email;
             mPassword = password;
             c = Client.getInstance();
+            c.setContext(getApplicationContext());
         }
 
         @Override
@@ -340,6 +342,8 @@ public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<
             } catch(AccountDoesntExistException e) {
                 Log.d("LOGIN", "Account Doesn't Exist");
                 ERROR_FLAG = "ACCOUNT";
+                return false;
+            } catch (UnsupportedEncodingException e) {
                 return false;
             }
             return true;

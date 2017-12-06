@@ -51,6 +51,7 @@ public class Server {
 			try {
 				System.out.println("Server listening at port " + port);
 				connectionSocket = welcomeSocket.accept();
+                //connectionSocket.setSoTimeout(1000);
 				System.out.println("Attempted Connection...");
 				System.out.println("Launching thread to handle connection...");
 				(new ServerThread(connectionSocket, pub, priv)).start();

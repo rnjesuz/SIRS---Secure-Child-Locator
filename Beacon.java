@@ -162,7 +162,7 @@ class BeaconClass {
 			//send public key to server
 			System.out.println("Sending Beacon Public Key...");
 			System.out.println(new String(beacon_encodedpubkey, "UTF-8"));
-			socketOut.writeInt(beacon_encodedpubkey.length);
+			//socketOut.writeInt(beacon_encodedpubkey.length);
 			socketOut.write(beacon_encodedpubkey);
 			socketOut.flush();
 			System.out.println("Sent Beacon Public Key");
@@ -170,12 +170,21 @@ class BeaconClass {
 			//get server public key from server
 			System.out.println("Getting server public key");
 			FileOutputStream fos = new FileOutputStream("BeaconDir/serverpubkey");
-			byte[] server_encodedpubkey = new byte[socketIn.readInt()];
-			socketIn.readFully(server_encodedpubkey);
-			fos.write(server_encodedpubkey);
+			//byte[] server_encodedpubkey = new byte[socketIn.readInt()];
+			byte[] aux = new byte[16 * 1024];
+            int count;
+
+            count = socketIn.read(aux);
+			fos.write(aux, 0, count);
 			fos.close();
 			System.out.println("Got server public key!");
-			System.out.println(new String(server_encodedpubkey, "UTF-8"));
+			//System.out.println(new String(server_encodedpubkey, "UTF-8"));
+
+            File filePublicKey = new File("BeaconDir/server_pubkey");
+            fis = new FileInputStream("BeaconDir/server_pubkey");
+            byte[] server_encodedpubkey = new byte[(int) filePublicKey.length()];
+            fis.read(server_encodedpubkey);
+            fis.close();
 
 			//transform bytes to key
 			KeyFactory keyFactory = KeyFactory.getInstance("RSA");

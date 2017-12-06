@@ -145,13 +145,27 @@ public class ServerThread extends Thread{
 	private void tradeKeys() {
 		try {
 			System.out.println("Receiving Public Key from Client");
-			byte[] encoded_pubkey = new byte[input.readInt()];
-			input.readFully(encoded_pubkey);
+			byte[] aux = new byte[16 * 1024];
 			FileOutputStream fos = new FileOutputStream("ServerDir/" + Thread.currentThread().getId() + "_pubkey");
-			fos.write(encoded_pubkey);
+
+            int count;
+            //try {
+                //while((count = input.read(aux)) > 0) {
+                    count = input.read(aux);
+                    fos.write(aux, 0, count);
+                    System.out.println("recving" + count);
+                //}
+            //} catch (SocketTimeoutException e) {
+            //}
 			fos.close();
 			System.out.println("Encoded Key Received");
-			System.out.println(new String(encoded_pubkey, "UTF-8"));
+			//System.out.println(new String(encoded_pubkey, "UTF-8"));
+            
+            File filePublicKey = new File("ServerDir/" + Thread.currentThread().getId() + "_pubkey");
+            FileInputStream fis = new FileInputStream("ServerDir/" + Thread.currentThread().getId() + "_pubkey");
+            byte[] encoded_pubkey = new byte[(int) filePublicKey.length()];
+            fis.read(encoded_pubkey);
+            fis.close();
 
 			KeyFactory keyFactory = KeyFactory.getInstance("RSA");
 			X509EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(encoded_pubkey);
@@ -159,14 +173,13 @@ public class ServerThread extends Thread{
 			System.out.println("Key Converted!");
 
 			System.out.println("Getting Server Public Key from File...");
-			FileInputStream fis = new FileInputStream("ServerDir/pubkey");
+			fis = new FileInputStream("ServerDir/pubkey");
 			byte[] server_encodedpubkey = new byte[fis.available()];
 			fis.read(server_encodedpubkey);
 			fis.close();
 
 			System.out.println("Sending Server Public Key");
 			System.out.println(new String(server_encodedpubkey,"UTF-8"));
-			output.writeInt(server_encodedpubkey.length);
 			output.write(server_encodedpubkey);
 			output.flush();
 			System.out.println("Sent Server Public Key");
@@ -209,7 +222,10 @@ public class ServerThread extends Thread{
             System.out.println("IV: " + new String(iv, "UTF-8"));
 			System.out.println("Session Key: " + new String(sk.getEncoded(), "UTF-8"));
 			
-			msg = rcvMsg("AES");
+            msg = null;
+            //while(msg == null) {
+			    msg = rcvMsg("AES");
+            //}
 		    String response = new String(msg, "UTF-8");
 		    
 		    if(!response.equals("OK")) {
@@ -518,8 +534,11 @@ public class ServerThread extends Thread{
 		byte[] msg = null;
 		//TODO: confirm counter, signature and isolate the message
 		try {
+			System.out.println("rcv1 ");
 			byte[] rcvd_msg = new byte[input.readInt()];
+			System.out.println("rcv2 ");
 			input.readFully(rcvd_msg);
+			System.out.println("rcv3 ");
 			
 			System.out.println("Received Message: ");
 			System.out.println(new String(rcvd_msg, "UTF-8"));
