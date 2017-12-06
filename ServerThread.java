@@ -6,9 +6,11 @@ import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 
+import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.InputStreamReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -332,7 +334,7 @@ public class ServerThread extends Thread{
 					System.out.println("Log in: FAIL->User not registered");
 					msg_sent = "NOT REGISTERED";
 				}
-				//sendMsg(msg_sent);
+				sendMsg(msg_sent.getBytes(), "AES");
 				break;
 
 			case "SIGNUP":
@@ -344,10 +346,12 @@ public class ServerThread extends Thread{
 					System.out.println("New account created");
 					clientID = msg[2];
 					msg_sent = "OK";
+					result = true;
 				} else  {
 					System.out.println("User already registered");
 					msg_sent = "ACCOUNT EXISTS";
 				}
+				sendMsg(msg_sent.getBytes(), "AES");
 				break;
 
 			default:
@@ -459,7 +463,8 @@ public class ServerThread extends Thread{
 
 				System.out.println("Listening to App...");
 
-				String msg_rcv = input.readLine();
+				String msg_rcv = new String(rcvMsg("AES"), "UTF-8");
+				//String msg_rcv = input.readLine();
 				String[] msg = msg_rcv.split(delim);
 				String msg_sent = "NO";
 				System.out.println(msg_rcv);
@@ -484,7 +489,8 @@ public class ServerThread extends Thread{
 					}
 
 					System.out.println(msg_sent);
-					output.writeBytes(msg_sent + '\n');
+					//output.writeBytes(msg_sent + '\n');
+					sendMsg(msg_sent.getBytes(), "AES");
 					break;
 
 					//case to add a new beacon				
@@ -532,7 +538,8 @@ public class ServerThread extends Thread{
 					//TODO REMOVE
 					printHashMaps();
 
-					output.writeBytes(msg_sent + '\n');
+					//output.writeBytes(msg_sent + '\n');
+					sendMsg(msg_sent.getBytes(), "AES");
 					break;
 
 					//case to request coords from a beacon
@@ -542,13 +549,14 @@ public class ServerThread extends Thread{
 					loadHashMaps();
 					//check if beacon was added
 					ArrayList<String> beacons = appBeacons.get(clientID);
-					if(beacons.contains(msg[1])){
+					if( (beacons != null) && (beacons.contains(msg[1])) ){
 						//beacon was added
 						//read from file 
-						byte[] encoded = Files.readAllBytes(Paths.get("Coordinates" + File.separator + msg[1]));
+						byte[] encoded = Files.readAllBytes(Paths.get("Coordinates"+ File.separator + msg[1] + ".txt"));
 						msg_sent = new String(encoded);
 					}
-					output.writeBytes(msg_sent + '\n');
+					//output.writeBytes(msg_sent + '\n');
+					sendMsg(msg_sent.getBytes(), "AES");
 					break;
 
 				default:

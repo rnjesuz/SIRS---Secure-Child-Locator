@@ -191,7 +191,7 @@ public class Client {
 		return hashedPass;
 	}
 
-	public void login(String email, String password) {
+	public String login(String email, String password) {
 		String msg = "NO";
 
 		try {
@@ -206,21 +206,29 @@ public class Client {
 		if(msg.isEmpty()) {
 			//the message being empty, means that there was an error in the encryption
 			//THROW NEW EXCEPTION? ex. CipherErrorException
-			return;
+			System.out.println("====================");
+			System.out.println("Log In: SUCCESS");
+			System.out.println("====================");
+			msg = "EMPTY";
 		}
 
 		if (msg.equals("OK")) {
+			System.out.println("====================");
 			System.out.println("Log In: SUCCESS");
-			return;
+			System.out.println("====================");
 		}
 
 		if (msg.equals("WRONG PASS")) {
-			System.out.println("Wrong Password, try again...");
+			System.out.println("====================");
+			System.out.println("Error logging in.");
+			System.out.println("====================");
 			//throw new IncorrectPasswordException();
 		}
 
 		if (msg.equals("NOT REGISTERED")) {
-			System.out.println("Account doesn't exist, please sign up...");
+			System.out.println("====================");
+			System.out.println("Error logging in.");
+			System.out.println("====================");
 			//throw new AccountDoesntExistException();
 		}
 
@@ -228,9 +236,11 @@ public class Client {
 			System.out.println("Access Denied.");
 			//throw new ConnectionFailedException();
 		}
+		
+		return msg;
 	}
 
-	public void signUp(String email, String password) {
+	public String signUp(String email, String password) {
 		String msg = "NO";
 
 		try{
@@ -243,19 +253,26 @@ public class Client {
 		}
 
 		if (msg.equals("OK")) {
-			System.out.println("Logged in!");
-			return;
+			System.out.println("====================");
+			System.out.println("Signed Up!");
+			System.out.println("====================");
 		}
 
 		if (msg.equals("ACCOUNT EXISTS")) {
+			System.out.println("====================");
 			System.out.println("Account already exists");
+			System.out.println("====================");
 			//throw new AccountAlreadyExistsException();
 		}
 
 		if (msg.equals("NO")) {
+			System.out.println("====================");
 			System.out.println("Access Denied.");
+			System.out.println("====================");
 			//throw new ConnectionFailedException();
 		}
+		
+		return msg;
 	}
 
 	public void addBeacon(String id, String pass) {
@@ -273,63 +290,85 @@ public class Client {
 		}
 
 		if (msg.equals("OK")) {
-			System.out.println("Beacon added");
+			System.out.println("====================");
+			System.out.println("Beacon added!");
+			System.out.println("====================");
 			return;
 		}
 
 		if (msg.equals("ALREADY ADDED")) {
+			System.out.println("====================");
 			System.out.println("Beacon already added to list...");
+			System.out.println("====================");
 			//throw new BeaconAlreadyAddedException();
 		}
 
 		if (msg.equals("DOESNT EXIST")) {
-			System.out.println("Beacon doesn't exist...");
+			System.out.println("Error adding.");
 			//throw new BeaconDoesntExistException();
 		}
 
 		if (msg.equals("NO")) {
-			System.out.println("Wrong Password, Access Denied.");
+			System.out.println("Error adding.");
 			//throw new IncorrectPasswordException();
 		}
 	}
 
-	public ArrayList<String> getList() {
+	public void getList() {
 		String rcv;
 		String[] msg;
-		ArrayList<String> list = new ArrayList<String>();
 
 		try {
 			System.out.println("Requesting List of beacons that the client has...");
-			output.writeBytes("LIST" + '\n');
-			rcv = input.readLine();
+			//output.writeBytes("LIST" + '\n');
+			String sendmsg = "LIST";
+			sendMsg(sendmsg.getBytes("UTF-8"), "AES");
+			//rcv = input.readLine();
+			rcv = new String(rcvMsg("AES"),"UTF-8");
 			System.out.println("Received the following: " + rcv);
-
+			
 			if(rcv.equals("NO")) {
-				System.out.println("list doesn't contain elements");
+				System.out.println("====================");
+				System.out.println("No beacons added...");
+				System.out.println("====================");
 				//throw new ListDoesntContainElementsException();
 			}
-
-			msg = rcv.split(delim);
-
-			for(String beacon : msg) {
-				list.add(beacon);
-				System.out.println(beacon);
+			else {
+				msg = rcv.split(delim);
+	
+				System.out.println("====================");
+				System.out.println("You have added the following beacons: ");
+				for(String beacon : msg) {
+					System.out.println(beacon);
+				}
+				System.out.println("====================");
 			}
 
 		} catch (IOException e) {
 			System.out.println(e.getMessage());
 			//throw new ConnectionFailedException();
 		}
-
-		return list;
 	}
 
 	public String getCoordinates(String beaconID) {
 		String coords = "";
 
 		try {
-			output.writeBytes("REQ" + delim + beaconID + '\n');
-			coords = input.readLine();
+			//output.writeBytes("REQ" + delim + beaconID + '\n');
+			String sendmsg = "REQ" + delim + beaconID;
+			sendMsg(sendmsg.getBytes("UTF-8"), "AES");
+			coords = new String(rcvMsg("AES"),"UTF-8");
+			
+			if(!coords.equals("NO")){
+				System.out.println("====================");
+				System.out.println("The beacon " + beaconID + " is at the following coordinates: " + coords);
+				System.out.println("====================");
+				}
+			else{
+				System.out.println("====================");
+				System.out.println("Coordinates not available");
+				System.out.println("====================");
+				}
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
