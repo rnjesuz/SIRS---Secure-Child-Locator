@@ -27,6 +27,7 @@ import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import javax.crypto.Mac;
 
 /**
  * Created by pedro on 11/11/2017.
@@ -196,18 +197,19 @@ public class Client {
 
 		try {
 			System.out.println("Logging in with " + email + " " + password);
-			String sendmsg = "APP" + delim + "LOGIN" + delim + email + delim + password;
+			String hashedPass = hashPasswordSHA512(password, email);
+			String sendmsg = "APP" + delim + "LOGIN" + delim + email + delim + hashedPass;
 			sendMsg(sendmsg.getBytes("UTF-8"), "AES");
 			msg = new String(rcvMsg("AES"),"UTF-8");
 		} catch(IOException e) {
 
 		}
 
-		if(msg.isEmpty()) {
+		if(msg == null || msg.isEmpty()) {
 			//the message being empty, means that there was an error in the encryption
 			//THROW NEW EXCEPTION? ex. CipherErrorException
 			System.out.println("====================");
-			System.out.println("Log In: SUCCESS");
+			System.out.println("Log In: ERROR");
 			System.out.println("====================");
 			msg = "EMPTY";
 		}
@@ -252,6 +254,15 @@ public class Client {
 
 		}
 
+		if(msg == null || msg.isEmpty()) {
+			//the message being empty, means that there was an error in the encryption
+			//THROW NEW EXCEPTION? ex. CipherErrorException
+			System.out.println("====================");
+            System.out.println("MESSAGE ERROR");
+			System.out.println("====================");
+			msg = "EMPTY";
+		}
+
 		if (msg.equals("OK")) {
 			System.out.println("====================");
 			System.out.println("Signed Up!");
@@ -287,6 +298,15 @@ public class Client {
 		} catch (IOException e) {
 			System.out.println(e.getMessage());
 			//throw new ConnectionFailedException();
+		}
+
+		if(msg == null || msg.isEmpty()) {
+			//the message being empty, means that there was an error in the encryption
+			//THROW NEW EXCEPTION? ex. CipherErrorException
+			System.out.println("====================");
+            System.out.println("MESSAGE ERROR");
+			System.out.println("====================");
+			msg = "EMPTY";
 		}
 
 		if (msg.equals("OK")) {
@@ -326,6 +346,15 @@ public class Client {
 			//rcv = input.readLine();
 			rcv = new String(rcvMsg("AES"),"UTF-8");
 			System.out.println("Received the following: " + rcv);
+
+            if(rcv == null || rcv.isEmpty()) {
+                //the message being empty, means that there was an error in the encryption
+                //THROW NEW EXCEPTION? ex. CipherErrorException
+                System.out.println("====================");
+                System.out.println("MESSAGE ERROR");
+                System.out.println("====================");
+                rcv = "NO";
+            }
 			
 			if(rcv.equals("NO")) {
 				System.out.println("====================");
@@ -359,7 +388,7 @@ public class Client {
 			sendMsg(sendmsg.getBytes("UTF-8"), "AES");
 			coords = new String(rcvMsg("AES"),"UTF-8");
 			
-			if(!coords.equals("NO")){
+			if(coords != null && !coords.equals("NO")){
 				System.out.println("====================");
 				System.out.println("The beacon " + beaconID + " is at the following coordinates: " + coords);
 				System.out.println("====================");
@@ -376,10 +405,27 @@ public class Client {
 		return coords;
 	}
 
+    private byte[] generateMac (byte[] msg) {
+        byte[] mac_data = null;
+        try {
+            Mac sha512Mac = Mac.getInstance("HmacSHA512");
+            sha512Mac.init(sk);
+            mac_data = sha512Mac.doFinal(msg);
+            System.out.println("-----HMAC Length----- " + mac_data.length);
+        } catch (NoSuchAlgorithmException | InvalidKeyException e) {
+        }
+
+        return mac_data;
+    }
+
 	private void sendMsg(byte[] msg, String type) {
 		//TODO: Add counter, signature, SALT(?), etc...
 		try {
 			byte[] send_msg = encrypt(msg, type);
+            if(type.equals("AES")) {
+                byte[] hmac = generateMac(send_msg);
+                output.write(hmac);
+            } 
 			output.writeInt(send_msg.length);
 			output.write(send_msg);
 			System.out.println("ORIGINAL: " + new String(msg, "UTF-8"));
@@ -394,8 +440,18 @@ public class Client {
 		byte[] msg = null;
 		//TODO: confirm counter, signature and isolate the message
 		try {
+            byte[] rcvd_hmac = null;
+            if(type.equals("AES")) {
+                rcvd_hmac = new byte[64];
+                input.read(rcvd_hmac, 0, 64);
+            }
 			byte[] rcvd_msg = new byte[input.readInt()];
 			input.readFully(rcvd_msg);
+            if(type.equals("AES")) {
+                byte[] hmac = generateMac(rcvd_msg);
+                if(!Arrays.equals(hmac, rcvd_hmac))
+                    return null;
+            }
 			msg = decrypt(rcvd_msg, type);
 			System.out.println("RECEIVED: " + new String(rcvd_msg, "UTF-8"));
 			System.out.println( "DECRYPTED: " + new String(msg, "UTF-8"));

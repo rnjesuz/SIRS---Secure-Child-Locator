@@ -5,6 +5,7 @@ import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import javax.crypto.Mac;
 
 import java.io.BufferedReader;
 import java.io.DataInputStream;
@@ -281,6 +282,7 @@ class BeaconClass {
 				sendMsg(msg.getBytes("UTF-8"), "AES");
 
 				byte[] received = rcvMsg("AES");
+                if(received == null) continue;
 				System.out.println(new String(received, "UTF-8"));
 				//sleep for 10 seconds
 				Thread.sleep(10000);
@@ -293,12 +295,29 @@ class BeaconClass {
 	}
 
 	//#############################ENCRYPTION-DECRYPTION OPERATIONS#############################
+    
+    private byte[] generateMac (byte[] msg) {
+        byte[] mac_data = null;
+        try {
+            Mac sha512Mac = Mac.getInstance("HmacSHA512");
+            sha512Mac.init(sk);
+            mac_data = sha512Mac.doFinal(msg);
+            System.out.println("-----HMAC Length----- " + mac_data.length);
+        } catch (NoSuchAlgorithmException | InvalidKeyException e) {
+        }
+
+        return mac_data;
+    }
 
 	private void sendMsg(byte[] msg, String type) {
 		//TODO: Add counter, signature, SALT(?), etc...
 		try {
 			System.out.println("Message: " + new String(msg, "UTF-8"));
 			byte[] send_msg = encrypt(msg, type);
+            if(type.equals("AES")) {
+                byte[] hmac = generateMac(send_msg);
+                socketOut.write(hmac);
+            } 
 			socketOut.writeInt(send_msg.length);
 			socketOut.write(send_msg);
 			
@@ -314,8 +333,18 @@ class BeaconClass {
 		byte[] msg = null;
 		//TODO: confirm counter, signature and isolate the message
 		try {
+            byte[] rcvd_hmac = null;
+            if(type.equals("AES")) {
+                rcvd_hmac = new byte[64];
+                socketIn.read(rcvd_hmac, 0, 64);
+            }
 			byte[] rcvd_msg = new byte[socketIn.readInt()];
 			socketIn.readFully(rcvd_msg);
+            if(type.equals("AES")) {
+                byte[] hmac = generateMac(rcvd_msg);
+                if(!Arrays.equals(hmac, rcvd_hmac))
+                    return null;
+            }
 			
 			System.out.println("Message Received: ");
 			System.out.println(new String(rcvd_msg, "UTF-8"));

@@ -5,6 +5,7 @@ import javax.crypto.KeyGenerator;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.Mac;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -85,6 +86,12 @@ public class ServerThread extends Thread{
 			loadHashMaps();	
 
 			String msg_rcv = new String(rcvMsg("AES"), "UTF-8");
+
+            if(msg_rcv == null) {
+                System.out.println("Message Error");
+                return;
+            }
+
 			String msg_sent = "NO";
 			String[] msg = msg_rcv.split(delim);
 
@@ -276,6 +283,10 @@ public class ServerThread extends Thread{
 			msg = null;
 			//while(msg == null) {
 			msg = rcvMsg("AES");
+            if(msg == null) {
+                System.out.println("Message Error");
+                return;
+            }
 			//}
 			String response = new String(msg, "UTF-8");
 
@@ -341,7 +352,8 @@ public class ServerThread extends Thread{
 				//Check if user is not registered else send Account already exists
 				loadHashMaps();
 				if(!userHashMap.containsKey(msg[2])) {
-					userHashMap.put(msg[2], msg[3]);
+					String hashedPass = hashPasswordSHA512(msg[3], msg[2]); //hashes password using username as salt
+					userHashMap.put(msg[2], hashedPass);
 					saveStatus(userHashMap, USR_HM_PATH);
 					System.out.println("New account created");
 					clientID = msg[2];
@@ -420,7 +432,10 @@ public class ServerThread extends Thread{
 			System.out.println("Listening to Beacon...");
 
 			while(true) {
-				String[] msg = (new String(rcvMsg("AES"), "UTF-8")).split(delim);
+                byte[] rcvd_msg = rcvMsg("AES");
+                if(rcvd_msg == null) continue;
+
+				String[] msg = (new String(rcvd_msg, "UTF-8")).split(delim);
 
 				switch(msg[0]) {
 
@@ -462,8 +477,10 @@ public class ServerThread extends Thread{
 			while(true) {
 
 				System.out.println("Listening to App...");
+                byte[] rcvd_msg = rcvMsg("AES");
+                if(rcvd_msg == null) continue;
 
-				String msg_rcv = new String(rcvMsg("AES"), "UTF-8");
+				String msg_rcv = new String(rcvd_msg, "UTF-8");
 				//String msg_rcv = input.readLine();
 				String[] msg = msg_rcv.split(delim);
 				String msg_sent = "NO";
@@ -571,10 +588,28 @@ public class ServerThread extends Thread{
 	}
 
 	//#################################CIPHER OPERATIONS#############################################
+    
+    private byte[] generateMac (byte[] msg) {
+        byte[] mac_data = null;
+        try {
+            Mac sha512Mac = Mac.getInstance("HmacSHA512");
+            sha512Mac.init(sk);
+            mac_data = sha512Mac.doFinal(msg);
+            System.out.println("-----HMAC Length----- " + mac_data.length);
+        } catch (NoSuchAlgorithmException | InvalidKeyException e) {
+        }
+
+        return mac_data;
+    }
+
 	private void sendMsg(byte[] msg, String type) {
 		//TODO: Add counter, signature, SALT(?), etc...
 		try {
 			byte[] send_msg = encrypt(msg, type);
+            if(type.equals("AES")) {
+                byte[] hmac = generateMac(send_msg);
+                output.write(hmac);
+            } 
 			output.writeInt(send_msg.length);
 			output.write(send_msg);
 			
@@ -591,8 +626,18 @@ public class ServerThread extends Thread{
 		byte[] msg = null;
 		//TODO: confirm counter, signature and isolate the message
 		try {
+            byte[] rcvd_hmac = null;
+            if(type.equals("AES")) {
+                rcvd_hmac = new byte[64];
+                input.read(rcvd_hmac, 0, 64);
+            }
 			byte[] rcvd_msg = new byte[input.readInt()];
 			input.readFully(rcvd_msg);
+            if(type.equals("AES")) {
+                byte[] hmac = generateMac(rcvd_msg);
+                if(!Arrays.equals(hmac, rcvd_hmac))
+                    return null;
+            }
 			msg = decrypt(rcvd_msg, type);
 			
 			System.out.println("RECEIVED: ");
