@@ -1,23 +1,17 @@
 package ist.meic.sirs.securechildlocator;
 
 import android.content.Context;
+import android.util.Base64;
 import android.util.Log;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
-import java.io.BufferedReader;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
 import java.net.Socket;
-import java.net.SocketTimeoutException;
-import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
@@ -30,7 +24,6 @@ import java.security.spec.InvalidKeySpecException;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -38,11 +31,15 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
-import javax.crypto.spec.IvParameterSpec;
 
-import ist.meic.sirs.securechildlocator.exceptions.*;
-
-import static android.os.Environment.DIRECTORY_DOCUMENTS;
+import ist.meic.sirs.securechildlocator.exceptions.AccountAlreadyExistsException;
+import ist.meic.sirs.securechildlocator.exceptions.AccountDoesntExistException;
+import ist.meic.sirs.securechildlocator.exceptions.BeaconAlreadyAddedException;
+import ist.meic.sirs.securechildlocator.exceptions.BeaconDoesntExistException;
+import ist.meic.sirs.securechildlocator.exceptions.CipherErrorException;
+import ist.meic.sirs.securechildlocator.exceptions.ConnectionFailedException;
+import ist.meic.sirs.securechildlocator.exceptions.IncorrectPasswordException;
+import ist.meic.sirs.securechildlocator.exceptions.ListDoesntContainElementsException;
 
 /**
  * Created by pedro on 11/11/2017.
@@ -74,7 +71,7 @@ public class Client {
     public static synchronized Client getInstance() {
         if(null == instance){
             instance = new Client();
-            instance.server_ip = "192.168.1.117";
+            instance.server_ip = "194.210.231.141";
             instance.server_port = 6667;
         }
         return instance;
@@ -98,7 +95,7 @@ public class Client {
 
     public void setOutput(Socket s) {
         try {
-            output = new DataOutputStream(new BufferedOutputStream(s.getOutputStream()));
+            output = new DataOutputStream(s.getOutputStream());
         } catch(IOException e) {
             e.printStackTrace();
         }
@@ -106,7 +103,7 @@ public class Client {
 
     public void setInput(Socket s) {
         try {
-            input =  new DataInputStream(new BufferedInputStream(s.getInputStream()));
+            input =  new DataInputStream(s.getInputStream());
         } catch(IOException e) {
             e.printStackTrace();
         }
@@ -128,6 +125,7 @@ public class Client {
         setOutput(getSocket());
         generateKeyPair();
         tradeKeys();
+        ASSTEST();
         rcvSessionKey();
         Log.d("CLIENT", "Connection Established!\n");
     }
@@ -159,50 +157,81 @@ public class Client {
     private void tradeKeys() {
         //Send public key to server
         try {
+            //Retrieve Key from File
             File client_pubkeyfile = new File(fileContext.getFilesDir(), "pubkey");
             FileInputStream fis = fileContext.openFileInput("pubkey");
             byte[] client_encodedpubkey = new byte [(int) client_pubkeyfile.length()];
             fis.read(client_encodedpubkey);
             fis.close();
-            output.write(client_encodedpubkey);
+            Log.d("CLIENT", "Retrieved Client Public Key: " + new String(client_encodedpubkey, "UTF-8"));
+            Log.d("CLIENT", "Native PubKey: " + new String(cli_pubkey.getEncoded(), "UTF-8"));
+
+            byte[] aux = Base64.encode(cli_pubkey.getEncoded(), Base64.DEFAULT);
+            Log.d("CLIENT", "Encoded Client Public Key: " + new String(aux, "UTF-8"));
+            Log.d("CLIENT", "Size: " + aux.length);
+
+            output.writeInt(aux.length);
+            output.write(aux);
             output.flush();
+            Log.d("CLIENT", "Sent Public Key!");
         } catch (IOException e) {
             Log.d("CLIENT", "Client Public Key wasn't delivered");
         }
 
-        //Receive public key from server
+        //Receive public key from server and save to file
         try {
-            byte[] aux = new byte[16 * 1024];
+            //Received encoded key
+            /*byte[] aux = new byte[1024 * 16];
+            int count = input.read(aux);
+            byte[] encoded_serverpub = Arrays.copyOfRange(aux, 0, count);*/
+            byte[] encoded_serverpub = new byte[input.readInt()];
+            input.readFully(encoded_serverpub);
+            Log.d("CLIENT", "Received Encoded Server Key: " + new String(encoded_serverpub,"UTF-8"));
+            Log.d("CLIENT", "Size: " + encoded_serverpub.length);
+
+            //Decode Key
+            byte[] server_pub = Base64.decode(encoded_serverpub, Base64.DEFAULT);
+            Log.d("CLIENT", "Decoded Server Key: " + new String(server_pub,"UTF-8"));
+
+            //Save to file
             FileOutputStream fos = fileContext.openFileOutput("server_pubkey", Context.MODE_PRIVATE);
-
-            int count;
-            //try {
-                //while ((count = input.read(aux)) > 0) {
-                    count = input.read(aux);
-                    fos.write(aux, 0, count);
-                //}
-            //} catch (SocketTimeoutException e) {
-
-            //}
+            fos.write(server_pub, 0, server_pub.length);
             fos.close();
+            Log.d("CLIENT", "Server Public Key Saved!");
         } catch (IOException e) {
             Log.d("CLIENT", "Server Public Key wasn't received");
         }
 
         //Load Server Public key
         try {
+            //Retrieve Key From File
             File filePublicKey = new File(fileContext.getFilesDir(), "server_pubkey");
             FileInputStream fis = fileContext.openFileInput("server_pubkey");
             byte[] encodedPublicKey = new byte[(int) filePublicKey.length()];
             fis.read(encodedPublicKey);
             fis.close();
+            Log.d("CLIENT", "Bytes Retrieved from file: " + new String(encodedPublicKey, "UTF-8"));
 
+            //Convert Bytes to Key
             KeyFactory keyFactory = KeyFactory.getInstance("RSA");
             X509EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(
                     encodedPublicKey);
             server_pubkey = keyFactory.generatePublic(publicKeySpec);
+            Log.d("CLIENT", "Key Generated: " + new String(server_pubkey.getEncoded()));
+            Log.d("CLIENT", "Server Public Key Received!");
         } catch (IOException | NoSuchAlgorithmException | InvalidKeySpecException e) {
             Log.d("CLIENT", "Server Public Key wasn't loaded");
+        }
+    }
+
+    private void ASSTEST() {
+        String msg = "how's dat ass?";
+        try {
+            sendMsg(msg.getBytes("UTF-8"), "RSA");
+            rcvMsg("RSA");
+            Log.d("CLIENT", "ASS DONE");
+        } catch (ConnectionFailedException | UnsupportedEncodingException e) {
+            Log.d("CLIENT", "ASS FAILED");
         }
     }
 
@@ -395,9 +424,12 @@ public class Client {
         //TODO: Add counter, signature, SALT(?), etc...
         try {
             byte[] send_msg = encrypt(msg, type);
-            output.writeInt(send_msg.length);
-            output.write(send_msg);
-            Log.d("CLIENT", "Send Message: SUCCESS");
+            byte[] encoded_msg = Base64.encode(send_msg, Base64.DEFAULT);
+            output.writeInt(encoded_msg.length);
+            output.write(encoded_msg);
+            Log.d("CLIENT", "ORIGINAL: " + new String(msg, "UTF-8"));
+            Log.d("CLIENT", "ENCRYPTED: " + new String(send_msg, "UTF-8"));
+            Log.d("CLIENT", "ENCODED: " + new String(encoded_msg, "UTF-8"));
         } catch (IOException | CipherErrorException e) {
             Log.d("CLIENT", "Send Message: FAIL");
             throw new ConnectionFailedException();
@@ -410,8 +442,11 @@ public class Client {
         try {
             byte[] rcvd_msg = new byte[input.readInt()];
             input.readFully(rcvd_msg);
-            msg = decrypt(rcvd_msg, type);
-            Log.d("CLIENT", "Receive Message: SUCCESS");
+            byte[] decoded_msg = Base64.decode(rcvd_msg, Base64.DEFAULT);
+            msg = decrypt(decoded_msg, type);
+            Log.d("CLIENT", "RECEIVED: " + new String(rcvd_msg, "UTF-8"));
+            Log.d("CLIENT", "DECODED: " + new String(decoded_msg, "UTF-8"));
+            Log.d("CLIENT", "DECRYPTED: " + new String(msg, "UTF-8"));
         } catch (IOException e) {
             Log.d("CLIENT", "Receive Message: FAIL");
             throw new ConnectionFailedException();
@@ -428,14 +463,14 @@ public class Client {
                     cipher = Cipher.getInstance("RSA");
                     cipher.init(Cipher.ENCRYPT_MODE, server_pubkey);
                     result = cipher.doFinal(msg);
-                    Log.d("CLIENT", "Encrypted message: " + new String(result, "UTF-8"));
-                } catch (InvalidKeyException | UnsupportedEncodingException | IllegalBlockSizeException
+                    //Log.d("CLIENT", "Encrypted message: " + new String(result, "UTF-8"));
+                } catch (InvalidKeyException  | IllegalBlockSizeException
                         | BadPaddingException | NoSuchAlgorithmException | NoSuchPaddingException e) {
                     Log.d("CLIENT", "Encryption: FAILED");
                     throw new CipherErrorException();
                 }
             case "AES":
-                try {
+                /*try {
                     cipher = Cipher.getInstance("RSA");
                     cipher.init(Cipher.ENCRYPT_MODE, server_pubkey);
                     result = cipher.doFinal(msg);
@@ -444,7 +479,7 @@ public class Client {
                         | BadPaddingException | NoSuchAlgorithmException | NoSuchPaddingException e) {
                     Log.d("CLIENT", "Encryption: FAILED");
                     throw new CipherErrorException();
-                }
+                }*/
         }
 
         return result;
@@ -468,11 +503,10 @@ public class Client {
                 break;
 
             case"AES":
-                try {
+                /*try {
                     Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
                     cipher.init(Cipher.DECRYPT_MODE, sk, new IvParameterSpec(iv));
                     result = cipher.doFinal(msg);
-
                     //generateIV for next communication
                     generateIV(msg);
 
@@ -480,7 +514,7 @@ public class Client {
                         | NoSuchAlgorithmException | NoSuchPaddingException
                         | IllegalBlockSizeException | BadPaddingException e) {
                     e.printStackTrace();
-                }
+                }*/
                 break;
         }
 

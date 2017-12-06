@@ -1,8 +1,15 @@
-import java.io.*;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.security.*;
-import java.security.spec.*;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 
 import javax.crypto.Cipher;
 import javax.crypto.NoSuchPaddingException;
@@ -51,7 +58,6 @@ public class Server {
 			try {
 				System.out.println("Server listening at port " + port);
 				connectionSocket = welcomeSocket.accept();
-                //connectionSocket.setSoTimeout(1000);
 				System.out.println("Attempted Connection...");
 				System.out.println("Launching thread to handle connection...");
 				(new ServerThread(connectionSocket, pub, priv)).start();

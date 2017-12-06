@@ -1,15 +1,40 @@
-import java.io.*;
-import java.net.*;
-import java.util.*;
-
-import javax.crypto.*;
+import javax.crypto.BadPaddingException;
+import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.KeyGenerator;
+import javax.crypto.NoSuchPaddingException;
+import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 
-import java.nio.file.*;
-import java.security.*;
+import java.io.BufferedWriter;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.Serializable;
+import java.io.UnsupportedEncodingException;
+import java.net.Socket;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
+import java.security.KeyFactory;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 
 public class ServerThread extends Thread{
 
@@ -51,9 +76,10 @@ public class ServerThread extends Thread{
 
 			prepareCommunication();
 			tradeKeys();
+			//ASSTEST();
 			generateSessionKey();
 			sendSessionKey();
-			
+
 			loadHashMaps();	
 
 			String msg_rcv = new String(rcvMsg("AES"), "UTF-8");
@@ -108,7 +134,7 @@ public class ServerThread extends Thread{
 		System.out.println("Channels Created!");	
 
 
-		try {
+		/*try {
 			System.out.println("Getting Public Key from folder");
 
 			// Read Public Key.
@@ -139,48 +165,61 @@ public class ServerThread extends Thread{
 		} catch (NoSuchAlgorithmException | InvalidKeySpecException e1) {
 			// TODO Auto-generated catch block
 			e1.printStackTrace();
-		}
+		}*/
 	}
 
 	private void tradeKeys() {
 		try {
 			System.out.println("Receiving Public Key from Client");
-			byte[] aux = new byte[16 * 1024];
-			FileOutputStream fos = new FileOutputStream("ServerDir/" + Thread.currentThread().getId() + "_pubkey");
-
-            int count;
-            //try {
-                //while((count = input.read(aux)) > 0) {
-                    count = input.read(aux);
-                    fos.write(aux, 0, count);
-                    System.out.println("recving" + count);
-                //}
-            //} catch (SocketTimeoutException e) {
-            //}
+			
+			//Receive encoded key
+			/*byte[] aux = new byte[1024 * 16];
+			int count = input.read(aux);
+			byte[] encoded_clipub = Arrays.copyOfRange(aux, 0, count);*/
+			byte[] encoded_clipub = new byte[input.readInt()];
+			input.readFully(encoded_clipub);
+			
+			System.out.println("Key Received: ");
+			System.out.println(new String(encoded_clipub, "UTF-8"));
+			System.out.println("Size: " + encoded_clipub.length);
+			
+			//Decode base64
+			/*byte[] cli_pub = Base64.decode(encoded_clipub, Base64.DEFAULT);
+			System.out.println("Key Decoded: ");
+			System.out.println(new String(cli_pub, "UTF-8"));*/
+			
+			//save key to file
+			/*FileOutputStream fos = new FileOutputStream("ServerDir/" + Thread.currentThread().getId() + "_pubkey");
+			fos.write(encoded_clipub, 0, encoded_clipub.length);
 			fos.close();
-			System.out.println("Encoded Key Received");
-			//System.out.println(new String(encoded_pubkey, "UTF-8"));
-            
-            File filePublicKey = new File("ServerDir/" + Thread.currentThread().getId() + "_pubkey");
-            FileInputStream fis = new FileInputStream("ServerDir/" + Thread.currentThread().getId() + "_pubkey");
-            byte[] encoded_pubkey = new byte[(int) filePublicKey.length()];
-            fis.read(encoded_pubkey);
-            fis.close();
+			System.out.println("Key Saved!");*/
 
+			//retrieve key from file
+			/*File filePublicKey = new File("ServerDir/" + Thread.currentThread().getId() + "_pubkey");
+			FileInputStream fis = new FileInputStream("ServerDir/" + Thread.currentThread().getId() + "_pubkey");
+			byte[] encoded_pubkey = new byte[(int) filePublicKey.length()];
+			fis.read(encoded_pubkey);
+			fis.close();
+			System.out.println("Key Retrieved: ");
+			System.out.println(new String(encoded_pubkey, "UTF-8"));*/
+			
+			//convert bytes into key
 			KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-			X509EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(encoded_pubkey);
+			X509EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(encoded_clipub);
 			cli_pubkey = keyFactory.generatePublic(publicKeySpec);
 			System.out.println("Key Converted!");
+			System.out.println(new String(cli_pubkey.getEncoded(), "UTF-8"));
 
-			System.out.println("Getting Server Public Key from File...");
-			fis = new FileInputStream("ServerDir/pubkey");
+			//get server public key from file
+			/*fis = new FileInputStream("ServerDir/pubkey");
 			byte[] server_encodedpubkey = new byte[fis.available()];
 			fis.read(server_encodedpubkey);
 			fis.close();
-
-			System.out.println("Sending Server Public Key");
-			System.out.println(new String(server_encodedpubkey,"UTF-8"));
-			output.write(server_encodedpubkey);
+			System.out.println("Server Key Retrieved from file: ");
+			System.out.println(new String(server_encodedpubkey, "UTF-8"));*/
+			
+			output.writeInt(server_pubkey.getEncoded().length);
+			output.write(server_pubkey.getEncoded());
 			output.flush();
 			System.out.println("Sent Server Public Key");
 
@@ -189,12 +228,22 @@ public class ServerThread extends Thread{
 		}
 	}
 
+	private void ASSTEST() {
+		try {
+			rcvMsg("RSA");
+			String msg = "TENOUTTATEN";
+			sendMsg(msg.getBytes("UTF-8"), "RSA");			
+		} catch (UnsupportedEncodingException e) {
+			System.out.println("NO ASS");
+		}
+	}
+	
 	private void generateSessionKey() {
 		try {
 			//generate key and IV
 			KeyGenerator generator = KeyGenerator.getInstance( "AES" );
 			sk = generator.generateKey();
-			
+
 		} catch (NoSuchAlgorithmException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -202,58 +251,58 @@ public class ServerThread extends Thread{
 	}
 
 	private void sendSessionKey() {		
-		
+
 		int ivSize = 16;
 		byte[] encrypted = encrypt(sk.getEncoded(), "RSA");
-		
+
 		generateIV(null);
 
 		byte[] msg = new byte[ivSize + encrypted.length];
-        System.arraycopy(iv, 0, msg, 0, ivSize);
-        System.arraycopy(encrypted, 0, msg, ivSize, encrypted.length);
-        
-        //NOTE: msg = iv + {sk}cli_pub
-        
-        try {
-        	output.writeInt(msg.length);
-            output.write(msg);
-            output.flush();
-            
-            System.out.println("IV: " + new String(iv, "UTF-8"));
+		System.arraycopy(iv, 0, msg, 0, ivSize);
+		System.arraycopy(encrypted, 0, msg, ivSize, encrypted.length);
+
+		//NOTE: msg = iv + {sk}cli_pub
+
+		try {
+			output.writeInt(msg.length);
+			output.write(msg);
+			output.flush();
+
+			System.out.println("IV: " + new String(iv, "UTF-8"));
 			System.out.println("Session Key: " + new String(sk.getEncoded(), "UTF-8"));
-			
-            msg = null;
-            //while(msg == null) {
-			    msg = rcvMsg("AES");
-            //}
-		    String response = new String(msg, "UTF-8");
-		    
-		    if(!response.equals("OK")) {
-		    	System.out.println("Response was not what was expected...");
-		    } else System.out.println("Session Key communication Established!");
-		    
+
+			msg = null;
+			//while(msg == null) {
+			msg = rcvMsg("AES");
+			//}
+			String response = new String(msg, "UTF-8");
+
+			if(!response.equals("OK")) {
+				System.out.println("Response was not what was expected...");
+			} else System.out.println("Session Key communication Established!");
+
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 	}
 
-    private String hashPasswordSHA512 (String password, String salt) {
-        String hashedPass = null;
-        try {
-            MessageDigest md = MessageDigest.getInstance("SHA-512");
-            md.update(salt.getBytes("UTF-8"));
-            byte[] bytes = md.digest(password.getBytes("UTF-8"));
-            StringBuilder sb = new StringBuilder();
-            for(int i = 0; i < bytes.length; i++) {
-                sb.append(Integer.toString((bytes[i] & 0xff) + 0x100, 16).substring(1));
-            }
-            hashedPass = sb.toString();
-        } catch (NoSuchAlgorithmException | UnsupportedEncodingException e) {
-            e.printStackTrace();
-        }
-        return hashedPass;
-    }
+	private String hashPasswordSHA512 (String password, String salt) {
+		String hashedPass = null;
+		try {
+			MessageDigest md = MessageDigest.getInstance("SHA-512");
+			md.update(salt.getBytes("UTF-8"));
+			byte[] bytes = md.digest(password.getBytes("UTF-8"));
+			StringBuilder sb = new StringBuilder();
+			for(int i = 0; i < bytes.length; i++) {
+				sb.append(Integer.toString((bytes[i] & 0xff) + 0x100, 16).substring(1));
+			}
+			hashedPass = sb.toString();
+		} catch (NoSuchAlgorithmException | UnsupportedEncodingException e) {
+			e.printStackTrace();
+		}
+		return hashedPass;
+	}
 
 
 	//Verify if sign up or login operation
@@ -330,7 +379,7 @@ public class ServerThread extends Thread{
 				//Check if Beacon is not registered else check if password matches up
 				//if Password matches, allow access, else deny it
 				if(!beaconHashMap.containsKey(msg[2])) {
-                    String hashedPass = hashPasswordSHA512(msg[3], msg[2]); //hashes password using username as salt
+					String hashedPass = hashPasswordSHA512(msg[3], msg[2]); //hashes password using username as salt
 					beaconHashMap.put(msg[2], hashedPass);
 					saveStatus(beaconHashMap, BCN_HM_PATH);
 					System.out.println("New account created");
@@ -383,14 +432,14 @@ public class ServerThread extends Thread{
 					//new file if one doesn't already exist
 					File newFile = new File("Coordinates" + File.separator + clientID + ".txt");
 					newFile.createNewFile();
-					
+
 					//write to file
 					FileWriter fw = new FileWriter(newFile.getAbsoluteFile());
 					BufferedWriter bw = new BufferedWriter(fw);
 					bw.write(msg[1] + " " + msg[2]);
 					bw.close();
 					break;
-					
+
 				default:
 					break;
 				}
@@ -517,13 +566,13 @@ public class ServerThread extends Thread{
 	private void sendMsg(byte[] msg, String type) {
 		//TODO: Add counter, signature, SALT(?), etc...
 		try {
-			System.out.println("Received Message: " + new String(msg, "UTF-8"));
-			
 			byte[] send_msg = encrypt(msg, type);
 			output.writeInt(send_msg.length);
 			output.write(send_msg);
 			
-			System.out.println("Encrypted Message Sent: ");
+			System.out.println("ORIGINAL: ");
+			System.out.println( new String(msg, "UTF-8"));
+			System.out.println("ENCRYPTED: ");
 			System.out.println(new String(send_msg, "UTF-8"));
 		} catch (IOException e) {
 			System.out.println("Send Message: FAIL");
@@ -534,17 +583,14 @@ public class ServerThread extends Thread{
 		byte[] msg = null;
 		//TODO: confirm counter, signature and isolate the message
 		try {
-			System.out.println("rcv1 ");
 			byte[] rcvd_msg = new byte[input.readInt()];
-			System.out.println("rcv2 ");
 			input.readFully(rcvd_msg);
-			System.out.println("rcv3 ");
-			
-			System.out.println("Received Message: ");
-			System.out.println(new String(rcvd_msg, "UTF-8"));
-			
 			msg = decrypt(rcvd_msg, type);
-			System.out.println("Decrypted Message: " + new String(msg, "UTF-8"));
+			
+			System.out.println("RECEIVED: ");
+			System.out.println(new String(rcvd_msg, "UTF-8"));
+			System.out.println("DECRYPTED: ");
+			System.out.println(new String(msg, "UTF-8"));
 		} catch (IOException e) {
 			System.out.println("Receive Message: FAIL");
 		}
@@ -572,10 +618,10 @@ public class ServerThread extends Thread{
 				Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
 				cipher.init(Cipher.ENCRYPT_MODE, sk, new IvParameterSpec(iv));
 				result = cipher.doFinal(msg);
-				
+
 				//generateIV for next communication
 				generateIV(result);
-				
+
 			} catch (InvalidKeyException | InvalidAlgorithmParameterException 
 					| NoSuchAlgorithmException | NoSuchPaddingException 
 					| IllegalBlockSizeException | BadPaddingException e) {
@@ -606,10 +652,10 @@ public class ServerThread extends Thread{
 				Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
 				cipher.init(Cipher.DECRYPT_MODE, sk, new IvParameterSpec(iv));
 				result = cipher.doFinal(msg);
-				
+
 				//generateIV for next communication
 				generateIV(msg);
-				
+
 			} catch (InvalidKeyException | InvalidAlgorithmParameterException 
 					| NoSuchAlgorithmException | NoSuchPaddingException 
 					| IllegalBlockSizeException | BadPaddingException e) {
@@ -620,14 +666,14 @@ public class ServerThread extends Thread{
 
 		return result;
 	}
-	
+
 	private void generateIV(byte[] msg) {
 		if(iv.length <= 0){
 			SecureRandom random = new SecureRandom();
 			iv = new byte [16];
 			random.nextBytes(iv);
 		} else {
-			 iv = Arrays.copyOfRange(msg, 0, 16);
+			iv = Arrays.copyOfRange(msg, msg.length-16, msg.length);
 		}
 	}
 
@@ -704,36 +750,4 @@ public class ServerThread extends Thread{
 		}
 		System.out.println("######END######");  
 	}
-
-	/*//ERASETHIS
-	private void ASSTEST() {
-		try{			
-			System.out.println("Waiting for dat ass...");
-			byte[] rcvd = new byte[input.readInt()];
-			input.readFully(rcvd);
-			System.out.println("Received message!");
-
-			System.out.println("Encrypted");
-			System.out.println(new String(rcvd, "UTF-8"));
-			cipher.init(Cipher.DECRYPT_MODE, server_privkey);
-			byte[] result = cipher.doFinal(rcvd);
-			System.out.println("Original: "+ new String(result, "UTF-8"));
-
-			String msg = "TENOUTTATEN, would tap!";
-			System.out.println("Imma say this...");
-			cipher.init(Cipher.ENCRYPT_MODE, cli_pubkey);
-			result = cipher.doFinal(msg.getBytes("UTF-8"));
-			System.out.println("Original: "+ msg);
-			System.out.println("Encrypted: "+ new String(result, "UTF-8"));
-
-			System.out.println("Sending Message...");
-			output.writeInt(result.length);
-			output.write(result);
-			output.flush();
-			System.out.println("Sent!");
-		} catch (IllegalBlockSizeException | BadPaddingException 
-				| InvalidKeyException | IOException e) {
-			e.printStackTrace();
-		}
-	}*/
 }

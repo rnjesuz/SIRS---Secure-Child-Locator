@@ -1,10 +1,29 @@
-import java.io.*;
-import java.net.Socket;
-
-import javax.crypto.*;
+import javax.crypto.BadPaddingException;
+import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
+import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
-import java.security.*;
+
+import java.io.BufferedReader;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.UnsupportedEncodingException;
+import java.net.Socket;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
+import java.security.KeyFactory;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Arrays;
@@ -14,11 +33,8 @@ import java.util.Arrays;
 public class Beacon {
 
 	public static void main(String[] args) {
-
 		new BeaconClass().runBeacon();
-
 	}
-
 }
 
 class BeaconClass {
@@ -104,6 +120,7 @@ class BeaconClass {
 		generateKeyPair();
 		ConnectToServer();
 		tradeKeys();
+		//ASSTEST();
 		rcvSessionKey();
 		SignUp();
 		ImAliveCicle();
@@ -122,16 +139,16 @@ class BeaconClass {
 			priv = keyPair.getPrivate();
 
 			//Save the keys to files
-			File directory = new File("BeaconDir");
+			/*File directory = new File("BeaconDir");
 			if(! directory.exists())
 				directory.mkdir();
 
 			X509EncodedKeySpec x509EncodedKeySpec = new X509EncodedKeySpec(pub.getEncoded());
 			FileOutputStream fos = new FileOutputStream("BeaconDir/pubkey");
 			fos.write(x509EncodedKeySpec.getEncoded());
-			fos.close();
+			fos.close();*/
 			System.out.println("Key Pair Generation: SUCCESS");
-		} catch (NoSuchAlgorithmException|IOException e) {
+		} catch (NoSuchAlgorithmException e) {
 			System.out.println("Key Pair Generation: FAIL");
 		}
 	}
@@ -154,37 +171,39 @@ class BeaconClass {
 	private void tradeKeys() {
 		try {
 			//get public key from file
-			FileInputStream fis = new FileInputStream("BeaconDir/pubkey");
+			/*FileInputStream fis = new FileInputStream("BeaconDir/pubkey");
 			byte[] beacon_encodedpubkey = new byte[fis.available()];
 			fis.read(beacon_encodedpubkey);
-			fis.close();
+			fis.close();*/
 
 			//send public key to server
 			System.out.println("Sending Beacon Public Key...");
-			System.out.println(new String(beacon_encodedpubkey, "UTF-8"));
-			//socketOut.writeInt(beacon_encodedpubkey.length);
-			socketOut.write(beacon_encodedpubkey);
+			//System.out.println(new String(beacon_encodedpubkey, "UTF-8"));
+			System.out.println(new String(pub.getEncoded(), "UTF-8"));
+			
+			socketOut.writeInt(pub.getEncoded().length);
+			socketOut.write(pub.getEncoded());
 			socketOut.flush();
 			System.out.println("Sent Beacon Public Key");
 
 			//get server public key from server
 			System.out.println("Getting server public key");
-			FileOutputStream fos = new FileOutputStream("BeaconDir/serverpubkey");
-			//byte[] server_encodedpubkey = new byte[socketIn.readInt()];
-			byte[] aux = new byte[16 * 1024];
-            int count;
+			//FileOutputStream fos = new FileOutputStream("BeaconDir/serverpubkey");
+			byte[] server_encodedpubkey = new byte[socketIn.readInt()];
+			socketIn.readFully(server_encodedpubkey);
+			/*byte[] aux = new byte[16 * 1024];
+            int count;*/
 
-            count = socketIn.read(aux);
-			fos.write(aux, 0, count);
-			fos.close();
+			/*fos.write(server_encodedpubkey, 0, server_encodedpubkey.length);
+			fos.close();*/
 			System.out.println("Got server public key!");
 			//System.out.println(new String(server_encodedpubkey, "UTF-8"));
 
-            File filePublicKey = new File("BeaconDir/server_pubkey");
-            fis = new FileInputStream("BeaconDir/server_pubkey");
-            byte[] server_encodedpubkey = new byte[(int) filePublicKey.length()];
+            /*File filePublicKey = new File("BeaconDir/serverpubkey");
+            fis = new FileInputStream("BeaconDir/serverpubkey");
+            server_encodedpubkey = new byte[(int) filePublicKey.length()];
             fis.read(server_encodedpubkey);
-            fis.close();
+            fis.close();*/
 
 			//transform bytes to key
 			KeyFactory keyFactory = KeyFactory.getInstance("RSA");
@@ -201,6 +220,16 @@ class BeaconClass {
 		}
 	}
 
+	/*private void ASSTEST() {
+		try {
+			String msg = "How's dat ass?";
+			sendMsg(msg.getBytes("UTF-8"), "RSA");		
+			rcvMsg("RSA");
+		} catch (UnsupportedEncodingException e) {
+			System.out.println("NO ASS");
+		}
+	}*/
+	
 	private void rcvSessionKey() {
 		
 		try {
@@ -372,7 +401,7 @@ class BeaconClass {
 	}
 	
 	private void generateIV(byte[] msg) {
-		iv = Arrays.copyOfRange(msg, 0, 16);
+		iv = Arrays.copyOfRange(msg, msg.length-16, msg.length);
 	}
 
 	/*private byte[] cipherAES(String text){
