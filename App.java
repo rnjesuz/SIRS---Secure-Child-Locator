@@ -1,6 +1,6 @@
-import java.io.*;
-import java.net.Socket;
-import java.util.ArrayList;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
 
 public class App {
 
@@ -114,9 +114,7 @@ public class App {
 					//REQ_BEACONID
 					System.out.println("Beacon ID:");
 					String BeaconID = in.readLine();
-					System.out.println("Beacon Password:");
-					String BeaconPassword = in.readLine();
-					c.getCoordinates(BeaconID, BeaconPassword);
+					c.getCoordinates(BeaconID);
 					continue;
 				} catch (IOException e) {
 					e.printStackTrace();

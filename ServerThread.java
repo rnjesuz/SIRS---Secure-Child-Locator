@@ -7,23 +7,17 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.Mac;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
-import java.io.InputStreamReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.io.UnsupportedEncodingException;
 import java.net.Socket;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.KeyFactory;
@@ -33,7 +27,6 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
-import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -86,7 +79,7 @@ public class ServerThread extends Thread{
 
 			String msg_rcv = new String(rcvMsg("AES"), "UTF-8");
 
-			if(msg_rcv == null) {
+			if(msg_rcv.equals(null)) {
 				System.out.println("Message Error");
 				return;
 			}
@@ -255,8 +248,8 @@ public class ServerThread extends Thread{
 				loadHashMaps();
 				//Check if user signed up previously else not registered
 				if(userHashMap.containsKey(msg[2])) {
-					//Check if password matches else wrong password
-					if(userHashMap.get(msg[2]).equals(msg[3])) {
+					String hashedPass = hashPasswordSHA512(msg[3], msg[2]); //hashes password using username as salt
+					if(userHashMap.get(msg[2]).equals(hashedPass)) {
 						System.out.println("Log In: SUCCESS");
 						clientID = msg[2];
 						msg_sent = "OK";
@@ -693,6 +686,7 @@ public class ServerThread extends Thread{
 	}
 
 	//#################################HASH-MAPS#####################################################
+	@SuppressWarnings({ "rawtypes", "unchecked" })
 	private void loadHashMaps() {
 		final String dir = System.getProperty("user.dir");
 		System.out.println("Loading hashmaps...");

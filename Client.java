@@ -21,7 +21,6 @@ import java.security.PublicKey;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.KeySpec;
 import java.security.spec.X509EncodedKeySpec;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 
@@ -41,9 +40,6 @@ import javax.crypto.Mac;
  */
 
 public class Client {
-
-	private static Client instance = null;
-
 	private PrivateKey cli_privkey;
 	private PublicKey cli_pubkey;
 	private PublicKey server_pubkey;
@@ -204,8 +200,8 @@ public class Client {
 
 		try {
 			System.out.println("Logging in with " + email + " " + password);
-			String hashedPass = hashPasswordSHA512(password, email);
-			String sendmsg = "APP" + delim + "LOGIN" + delim + email + delim + hashedPass;
+			//String hashedPass = hashPasswordSHA512(password, email);
+			String sendmsg = "APP" + delim + "LOGIN" + delim + email + delim + password;
 			sendMsg(sendmsg.getBytes("UTF-8"), "AES");
 			msg = new String(rcvMsg("AES"),"UTF-8");
 		} catch(IOException e) {
@@ -320,7 +316,8 @@ public class Client {
 		}
 
 		if (msg.equals("OK")) {
-            beaconHashMap.put(id, hashedPass);
+			loadHashMaps();
+            beaconHashMap.put(id, pass);
             saveStatus(beaconHashMap, BCN_HM_PATH);
 
 			System.out.println("====================");
@@ -398,16 +395,20 @@ public class Client {
 		}
 	}
 
-	public String getCoordinates(String beaconID, String BeaconPassword) {
+	public String getCoordinates(String beaconID) {
 		String coords = "";
 
 		try {
-			//output.writeBytes("REQ" + delim + beaconID + '\n');
-			String sendmsg = "REQ" + delim + beaconID;
-			sendMsg(sendmsg.getBytes("UTF-8"), "AES");
-			byte[] _coords = rcvMsg("AES");
-			byte[] _iv = rcvMsg("AES");
-			coords = decipherWithPass(_coords, BeaconPassword, _iv);
+			//output.writeBytes("REQ" + delim + beaconID + '\n');	
+			loadHashMaps();
+			if(beaconHashMap.containsKey(beaconID)) {
+				String pass = beaconHashMap.get(beaconID);
+				String sendmsg = "REQ" + delim + beaconID;
+				sendMsg(sendmsg.getBytes("UTF-8"), "AES");
+				byte[] _coords = rcvMsg("AES");
+				byte[] _iv = rcvMsg("AES");
+				coords = decipherWithPass(_coords, pass, _iv);
+			}
 			
 			if(coords != null && !coords.equals("NO")){
 				System.out.println("====================");
@@ -556,6 +557,7 @@ public class Client {
 	}
 
 	//#################################HASH-MAPS#####################################################
+	@SuppressWarnings({ "unchecked", "rawtypes" })
 	private void loadHashMaps() {
 		final String dir = System.getProperty("user.dir");
 		System.out.println("Loading hashmaps...");
