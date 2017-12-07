@@ -5,6 +5,9 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.Serializable;
 import java.net.Socket;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
@@ -19,6 +22,7 @@ import java.security.spec.InvalidKeySpecException;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -50,11 +54,23 @@ public class Client {
 	private DataOutputStream output;
 	private Socket socket;
 
+	private HashMap<String, String> beaconHashMap = new HashMap<String, String>();
+
+	private final String BCN_HM_PATH = "/database_app/beaconHashMap.dat";
+
 	private final String delim = "_";
 
 	public Client() {
 		server_ip="localhost";
 		server_port=6667;
+
+        final String dir = System.getProperty("user.dir");
+        File file = new File(dir + "/database_app");
+        if(!file.exists()) {
+            file.mkdir();
+        }
+
+        loadHashMaps();
 	}
 
 	public DataOutputStream getOutput() {
@@ -288,10 +304,11 @@ public class Client {
 
 	public void addBeacon(String id, String pass) {
 		String msg = "NO";
+        String hashedPass = null;
 
 		try {
 			System.out.println("Adding Beacon " + id);
-			String hashedPass = hashPasswordSHA512(pass, id);
+			hashedPass = hashPasswordSHA512(pass, id);
 			String sendmsg = "ADD" + delim + id + delim + hashedPass;
 			sendMsg(sendmsg.getBytes("UTF-8"), "AES");
 			msg = new String(rcvMsg("AES"),"UTF-8");
@@ -310,6 +327,9 @@ public class Client {
 		}
 
 		if (msg.equals("OK")) {
+            beaconHashMap.put(id, hashedPass);
+            saveStatus(beaconHashMap, BCN_HM_PATH);
+
 			System.out.println("====================");
 			System.out.println("Beacon added!");
 			System.out.println("====================");
@@ -534,6 +554,47 @@ public class Client {
 
 	private void generateIV(byte[] msg) {
 		iv = Arrays.copyOfRange(msg, msg.length-16, msg.length);
+	}
+
+	//#################################HASH-MAPS#####################################################
+	private void loadHashMaps() {
+		final String dir = System.getProperty("user.dir");
+		System.out.println("Loading hashmaps...");
+
+		File file = new File(dir + BCN_HM_PATH);
+		if(file.exists()) {
+			beaconHashMap = (HashMap) loadStatus(BCN_HM_PATH);
+			System.out.println("Beacon hashmap loaded!");
+		}
+
+		System.out.println("Loading done!");
+	}
+
+	private Object loadStatus(String name){
+		Object result = null;
+		try {
+			final String dir = System.getProperty("user.dir");
+			FileInputStream saveFile = new FileInputStream(dir + name);
+			ObjectInputStream in = new ObjectInputStream(saveFile);
+			result = in.readObject();
+			in.close();
+			saveFile.close();
+		} catch (IOException | ClassNotFoundException e) {
+			e.printStackTrace();
+		}
+		return result;
+	}
+
+	private void saveStatus(Serializable object, String name){
+		try {
+			final String dir = System.getProperty("user.dir");
+			FileOutputStream saveFile = new FileOutputStream(dir + name);
+			ObjectOutputStream out = new ObjectOutputStream(saveFile);
+			out.writeObject(object);
+			out.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 	}
 }
 

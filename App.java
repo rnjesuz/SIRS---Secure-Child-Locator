@@ -10,7 +10,7 @@ public class App {
 	public static void main(String[] args) {
 
 		System.out.println("Welcome to Child Locator!");
-		
+
 		while(true){
 			System.out.println("Select the option number:");
 			System.out.println("(1) Sign Up");
