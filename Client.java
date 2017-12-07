@@ -19,6 +19,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.spec.InvalidKeySpecException;
+import java.security.spec.KeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -29,7 +30,9 @@ import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 import javax.crypto.Mac;
 
@@ -399,7 +402,7 @@ public class Client {
 		}
 	}
 
-	public String getCoordinates(String beaconID) {
+	public String getCoordinates(String beaconID, String BeaconPassword) {
 		String coords = "";
 
 		try {
@@ -596,5 +599,48 @@ public class Client {
 			e.printStackTrace();
 		}
 	}
+	
+	/*private String decipherPass(byte[] cipherText, String Beaconpassword){
+		String plainText = "";
+		try{
+			SecretKeySpec keySpec = null;
+			keySpec = new SecretKeySpec(Beaconpassword.getBytes(), "AES");
+			Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+			cipher.init(Cipher.ENCRYPT_MODE, keySpec);
+			plainText = new String (cipher.doFinal(cipherText), "UTF-8");
+		} //TODO wrong! wrong! wrong!
+		catch (Exception e){
+			e.printStackTrace();
+		}
+		return plainText;
+	}*/
+	
+	private String decipherWithPass(byte[] cipherText, String BeaconPassword, byte[] iv){
+
+		String plainText = "";
+		
+		try{
+
+			System.out.println(cipherText);
+
+			//Generate SecretKey
+			SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
+			KeySpec spec = new PBEKeySpec(BeaconPassword.toCharArray(), "salt".getBytes(), 65536, 128);
+			SecretKey tmp = factory.generateSecret(spec);
+			SecretKey secret = new SecretKeySpec(tmp.getEncoded(), "AES");
+			//Decipher
+			Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+			cipher.init(Cipher.DECRYPT_MODE, secret, new IvParameterSpec(iv));
+			plainText = new String(cipher.doFinal(cipherText), "UTF-8");
+
+			System.out.println(plainText);
+
+		} //TODO wrong! wrong! wrong!
+		catch (Exception e){
+			e.printStackTrace();
+		}
+		return plainText;
+	}
+	
 }
 

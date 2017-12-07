@@ -6,6 +6,11 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import javax.crypto.Mac;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
+import java.security.spec.*;
+import java.security.AlgorithmParameters;
+
 
 import java.io.BufferedReader;
 import java.io.DataInputStream;
@@ -27,6 +32,7 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.X509EncodedKeySpec;
+import java.util.ArrayList;
 import java.util.Arrays;
 
 // main class
@@ -433,12 +439,29 @@ class BeaconClass {
 		iv = Arrays.copyOfRange(msg, msg.length-16, msg.length);
 	}
 
-	/*private byte[] cipherAES(String text){
-
+	/*private byte[] cipherPass(String text){
 		byte[] cipherText = null;
 		try{
+			byte[] output = null;
+			SecretKeySpec keySpec = null;
+			keySpec = new SecretKeySpec(password.getBytes(), "AES");
+			Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+			cipher.init(Cipher.ENCRYPT_MODE, keySpec);
+			output = cipher.doFinal(text.getBytes());
+		} //TODO wrong! wrong! wrong!
+		catch (Exception e){
+			e.printStackTrace();
+		}
 
-			System.out.println(text);
+		return cipherText;
+	}*/
+	
+	private ArrayList<byte[]> cipherWithPass(String text){
+
+		ArrayList<byte[]> output = null;
+		try{
+
+			System.out.println("Before ciphering with pass: " + text);
 
 			//generate cypher key given password and salt
 			char[] passwordChar = password.toCharArray();
@@ -450,12 +473,14 @@ class BeaconClass {
 			//Cipher
 			Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
 			cipher.init(Cipher.ENCRYPT_MODE, secret);
-			cipherText = cipher.doFinal(text.getBytes("UTF-8"));
+			byte[] cipherText = cipher.doFinal(text.getBytes("UTF-8"));
 
-			System.out.println(cipherText);
+			System.out.println("After ciphering with pass: " + cipherText);
 
 			AlgorithmParameters params = cipher.getParameters();
 			byte[] iv = params.getParameterSpec(IvParameterSpec.class).getIV();
+			output.add(cipherText);
+			output.add(iv);
 
 			//test decription
 			//decipherAES(cipherText, iv);
@@ -465,11 +490,11 @@ class BeaconClass {
 			e.printStackTrace();
 		}
 
-		return cipherText;
+		return output;
 	}
 
 	//test function tocheck if cypher/uncypher works
-	private void decipherAES(byte[] cipherText, byte[] iv){
+	/*private void decipherAES(byte[] cipherText, byte[] iv){
 
 		try{
 
@@ -491,6 +516,6 @@ class BeaconClass {
 		catch (Exception e){
 			e.printStackTrace();
 		}
-	}
-	 */
+	}*/
+	 
 }

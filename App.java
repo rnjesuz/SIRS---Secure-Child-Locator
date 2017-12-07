@@ -113,7 +113,9 @@ public class App {
 					//REQ_BEACONID
 					System.out.println("Beacon ID:");
 					String BeaconID = in.readLine();
-					c.getCoordinates(BeaconID);
+					System.out.println("Beacon Password:");
+					String BeaconPassword = in.readLine();
+					c.getCoordinates(BeaconID, BeaconPassword);
 					continue;
 				} catch (IOException e) {
 					e.printStackTrace();
