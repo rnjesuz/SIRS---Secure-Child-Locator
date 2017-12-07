@@ -127,10 +127,10 @@ class BeaconClass {
 		generateKeyPair();
 		ConnectToServer();
 		tradeKeys();
-		//ASSTEST();
 		rcvSessionKey();
-		SignUp();
-		ImAliveCicle();
+		if(SignUp())
+			ImAliveCicle();
+		else System.out.println("Beacon Closing...");
 	}
 
 	private void generateKeyPair() {
@@ -138,22 +138,11 @@ class BeaconClass {
 		KeyPairGenerator keyPairGenerator = null;
 
 		try {
-
 			keyPairGenerator = KeyPairGenerator.getInstance("RSA");
 			keyPairGenerator.initialize(1024);
 			KeyPair keyPair = keyPairGenerator.genKeyPair();
 			pub = keyPair.getPublic();
 			priv = keyPair.getPrivate();
-
-			//Save the keys to files
-			/*File directory = new File("BeaconDir");
-			if(! directory.exists())
-				directory.mkdir();
-
-			X509EncodedKeySpec x509EncodedKeySpec = new X509EncodedKeySpec(pub.getEncoded());
-			FileOutputStream fos = new FileOutputStream("BeaconDir/pubkey");
-			fos.write(x509EncodedKeySpec.getEncoded());
-			fos.close();*/
 			System.out.println("Key Pair Generation: SUCCESS");
 		} catch (NoSuchAlgorithmException e) {
 			System.out.println("Key Pair Generation: FAIL");
@@ -177,15 +166,7 @@ class BeaconClass {
 
 	private void tradeKeys() {
 		try {
-			//get public key from file
-			/*FileInputStream fis = new FileInputStream("BeaconDir/pubkey");
-			byte[] beacon_encodedpubkey = new byte[fis.available()];
-			fis.read(beacon_encodedpubkey);
-			fis.close();*/
-
-			//send public key to server
 			System.out.println("Sending Beacon Public Key...");
-			//System.out.println(new String(beacon_encodedpubkey, "UTF-8"));
 			System.out.println(new String(pub.getEncoded(), "UTF-8"));
 			
 			socketOut.writeInt(pub.getEncoded().length);
@@ -195,23 +176,10 @@ class BeaconClass {
 
 			//get server public key from server
 			System.out.println("Getting server public key");
-			//FileOutputStream fos = new FileOutputStream("BeaconDir/serverpubkey");
 			byte[] server_encodedpubkey = new byte[socketIn.readInt()];
 			socketIn.readFully(server_encodedpubkey);
-			/*byte[] aux = new byte[16 * 1024];
-            int count;*/
-
-			/*fos.write(server_encodedpubkey, 0, server_encodedpubkey.length);
-			fos.close();*/
 			System.out.println("Got server public key!");
-			//System.out.println(new String(server_encodedpubkey, "UTF-8"));
-
-            /*File filePublicKey = new File("BeaconDir/serverpubkey");
-            fis = new FileInputStream("BeaconDir/serverpubkey");
-            server_encodedpubkey = new byte[(int) filePublicKey.length()];
-            fis.read(server_encodedpubkey);
-            fis.close();*/
-
+			
 			//transform bytes to key
 			KeyFactory keyFactory = KeyFactory.getInstance("RSA");
 			X509EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(server_encodedpubkey);
@@ -226,16 +194,6 @@ class BeaconClass {
 			e.printStackTrace();
 		}
 	}
-
-	/*private void ASSTEST() {
-		try {
-			String msg = "How's dat ass?";
-			sendMsg(msg.getBytes("UTF-8"), "RSA");		
-			rcvMsg("RSA");
-		} catch (UnsupportedEncodingException e) {
-			System.out.println("NO ASS");
-		}
-	}*/
 	
 	private void rcvSessionKey() {
 		
@@ -267,15 +225,21 @@ class BeaconClass {
 		}
 	}
 
-	private void SignUp() {
+	private boolean SignUp() {
 		System.out.println("Signing Up");
+		boolean result = false;
 		try {
 			String msg = "BEACON_SIGNUP_" + getUsername() + "_" + getPassword();
 			sendMsg(msg.getBytes("UTF-8"), "AES");
-			rcvMsg("AES");
+			byte[] rcvd_msg = rcvMsg("AES");
+			if(rcvd_msg == null || !new String(rcvd_msg, "UTF-8").equals("OK")){
+				result = false;
+			} else result = true;
 		} catch (IOException e) {
-			e.printStackTrace();
+			result = false;
+			return result;
 		}
+		return result;
 	}
 
 	private void ImAliveCicle(){
@@ -283,13 +247,23 @@ class BeaconClass {
 			System.out.println("Sending coords...");
 			try {
 				//TODO change to a proper coordinates system
-				String istCoords = "38.736685_-9.138619";  // latitude/longitude of IST. to simulate real coordinates
-				String msg = "COORDS_" + istCoords;
+				String istCoords = "38.736685, -9.138619";  // latitude/longitude of IST. to simulate real coordinates
+				
+				ArrayList<byte[]> list = cipherWithPass(istCoords);
+				byte[] _ciphercoords = list.get(0);
+				byte[] _iv = list.get(1);
+				
+				System.out.println("iv size: " + _iv.length);
+				
+				String msg = "COORDS";
 				sendMsg(msg.getBytes("UTF-8"), "AES");
+				sendMsg(_ciphercoords, "AES");
+				sendMsg(_iv, "AES");
 
 				byte[] received = rcvMsg("AES");
-                if(received == null) continue;
+                if(received == null) break;
 				System.out.println(new String(received, "UTF-8"));
+				
 				//sleep for 10 seconds
 				Thread.sleep(10000);
 			} catch (IOException e) {
@@ -458,7 +432,7 @@ class BeaconClass {
 	
 	private ArrayList<byte[]> cipherWithPass(String text){
 
-		ArrayList<byte[]> output = null;
+		ArrayList<byte[]> result = null;
 		try{
 
 			System.out.println("Before ciphering with pass: " + text);
@@ -470,27 +444,29 @@ class BeaconClass {
 			KeySpec spec = new PBEKeySpec(passwordChar, saltByte, 65536, 128);
 			SecretKey tmp = factory.generateSecret(spec);
 			SecretKey secret = new SecretKeySpec(tmp.getEncoded(), "AES");
+			
 			//Cipher
 			Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
 			cipher.init(Cipher.ENCRYPT_MODE, secret);
-			byte[] cipherText = cipher.doFinal(text.getBytes("UTF-8"));
+			byte[] ciphertext = cipher.doFinal(text.getBytes("UTF-8"));
 
-			System.out.println("After ciphering with pass: " + cipherText);
+			System.out.println("After ciphering with pass: " + new String(ciphertext, "UTF-8"));
 
 			AlgorithmParameters params = cipher.getParameters();
-			byte[] iv = params.getParameterSpec(IvParameterSpec.class).getIV();
-			output.add(cipherText);
-			output.add(iv);
+			byte[] _iv = params.getParameterSpec(IvParameterSpec.class).getIV();
+			
+			result = new ArrayList<byte[]>();
+			result.add(ciphertext);
+			result.add(_iv);
 
-			//test decription
-			//decipherAES(cipherText, iv);
-
+			System.out.println("Encrypting Coordinates with Pass: SUCCESS");
 		} //TODO wrong! wrong! wrong!
 		catch (Exception e){
 			e.printStackTrace();
+			System.out.println("Encrypting Coordinates with Pass: FAILED");
 		}
 
-		return output;
+		return result;
 	}
 
 	//test function tocheck if cypher/uncypher works

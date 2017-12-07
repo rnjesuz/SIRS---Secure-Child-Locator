@@ -120,7 +120,6 @@ public class Client {
 		setOutput(getSocket());
 		generateKeyPair();
 		tradeKeys();
-		//ASSTEST();
 		rcvSessionKey();
 		System.out.println("Connection Established!");
 	}
@@ -161,17 +160,6 @@ public class Client {
 			System.out.println("Client Public Key wasn't delivered");
 		}
 	}
-
-	/*private void ASSTEST() {
-		String msg = "how's dat ass?";
-		try {
-			sendMsg(msg.getBytes("UTF-8"), "RSA");
-			rcvMsg("RSA");
-			System.out.println("ASS DONE");
-		} catch (UnsupportedEncodingException e) {
-			System.out.println( "ASS FAILED");
-		}
-	}*/
 
 	private void rcvSessionKey() {
 
@@ -254,7 +242,9 @@ public class Client {
 		}
 
 		if (msg.equals("NO")) {
+			System.out.println("====================");
 			System.out.println("Access Denied.");
+			System.out.println("====================");
 			//throw new ConnectionFailedException();
 		}
 		
@@ -277,9 +267,9 @@ public class Client {
 			//the message being empty, means that there was an error in the encryption
 			//THROW NEW EXCEPTION? ex. CipherErrorException
 			System.out.println("====================");
-            System.out.println("MESSAGE ERROR");
+            System.out.println("Request Failed");
 			System.out.println("====================");
-			msg = "EMPTY";
+			msg="EMPTY";
 		}
 
 		if (msg.equals("OK")) {
@@ -316,7 +306,7 @@ public class Client {
 			sendMsg(sendmsg.getBytes("UTF-8"), "AES");
 			msg = new String(rcvMsg("AES"),"UTF-8");
 		} catch (IOException e) {
-			System.out.println(e.getMessage());
+			//System.out.println(e.getMessage());
 			//throw new ConnectionFailedException();
 		}
 
@@ -324,9 +314,9 @@ public class Client {
 			//the message being empty, means that there was an error in the encryption
 			//THROW NEW EXCEPTION? ex. CipherErrorException
 			System.out.println("====================");
-            System.out.println("MESSAGE ERROR");
+            System.out.println("Request Failed");
 			System.out.println("====================");
-			msg = "EMPTY";
+			msg="EMPTY";
 		}
 
 		if (msg.equals("OK")) {
@@ -347,12 +337,16 @@ public class Client {
 		}
 
 		if (msg.equals("DOESNT EXIST")) {
-			System.out.println("Error adding.");
+			System.out.println("====================");
+			System.out.println("Beacon doesn't Exist");
+			System.out.println("====================");
 			//throw new BeaconDoesntExistException();
 		}
 
 		if (msg.equals("NO")) {
-			System.out.println("Error adding.");
+			System.out.println("====================");
+			System.out.println("Operation Denied");
+			System.out.println("====================");
 			//throw new IncorrectPasswordException();
 		}
 	}
@@ -374,9 +368,9 @@ public class Client {
                 //the message being empty, means that there was an error in the encryption
                 //THROW NEW EXCEPTION? ex. CipherErrorException
                 System.out.println("====================");
-                System.out.println("MESSAGE ERROR");
+                System.out.println("Request Failed");
                 System.out.println("====================");
-                rcv = "NO";
+                rcv = "EMPTY";
             }
 			
 			if(rcv.equals("NO")) {
@@ -397,8 +391,10 @@ public class Client {
 			}
 
 		} catch (IOException e) {
-			System.out.println(e.getMessage());
-			//throw new ConnectionFailedException();
+			System.out.println("====================");
+			System.out.println("Request Failed");
+			System.out.println("====================");
+			
 		}
 	}
 
@@ -409,7 +405,9 @@ public class Client {
 			//output.writeBytes("REQ" + delim + beaconID + '\n');
 			String sendmsg = "REQ" + delim + beaconID;
 			sendMsg(sendmsg.getBytes("UTF-8"), "AES");
-			coords = new String(rcvMsg("AES"),"UTF-8");
+			byte[] _coords = rcvMsg("AES");
+			byte[] _iv = rcvMsg("AES");
+			coords = decipherWithPass(_coords, BeaconPassword, _iv);
 			
 			if(coords != null && !coords.equals("NO")){
 				System.out.println("====================");
@@ -455,7 +453,6 @@ public class Client {
 			System.out.println("ENCRYPTED: " + new String(send_msg, "UTF-8"));
 		} catch (IOException e) {
 			System.out.println( "Send Message: FAIL");
-			//throw new ConnectionFailedException();
 		}
 	}
 
@@ -480,7 +477,6 @@ public class Client {
 			System.out.println( "DECRYPTED: " + new String(msg, "UTF-8"));
 		} catch (IOException e) {
 			System.out.println("Receive Message: FAIL");
-			//throw new ConnectionFailedException();
 		}
 		return msg;
 	}

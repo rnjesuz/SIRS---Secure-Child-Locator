@@ -1,5 +1,4 @@
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -8,11 +7,6 @@ import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
-import java.security.spec.PKCS8EncodedKeySpec;
-import java.security.spec.X509EncodedKeySpec;
-
-import javax.crypto.Cipher;
-import javax.crypto.NoSuchPaddingException;
 
 public class Server {
 
@@ -78,26 +72,9 @@ public class Server {
 			keyPairGenerator.initialize(1024);
 			KeyPair keyPair = keyPairGenerator.genKeyPair();
 			pub = keyPair.getPublic();
-			priv = keyPair.getPrivate();
-
-            //Save the keys to files
-			File directory = new File("ServerDir");
-			if(! directory.exists())
-					directory.mkdir();
-			
-            X509EncodedKeySpec x509EncodedKeySpec = new X509EncodedKeySpec(pub.getEncoded());
-            FileOutputStream fos = new FileOutputStream("ServerDir/pubkey");
-            fos.write(x509EncodedKeySpec.getEncoded());
-            fos.close();
-            
-            PKCS8EncodedKeySpec pkcs8EncodedKeySpec = new PKCS8EncodedKeySpec(
-    				priv.getEncoded());
-    		fos = new FileOutputStream("ServerDir/privkey");
-    		fos.write(pkcs8EncodedKeySpec.getEncoded());
-    		fos.close();
-    		
+			priv = keyPair.getPrivate();    		
 			System.out.println("Key Pair Generation: SUCCESS");
-		} catch (NoSuchAlgorithmException | IOException e) {
+		} catch (NoSuchAlgorithmException e) {
 			System.out.println("Key Pair Generation: FAIL");
 		}
 	}

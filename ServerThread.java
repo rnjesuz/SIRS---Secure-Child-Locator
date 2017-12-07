@@ -79,7 +79,6 @@ public class ServerThread extends Thread{
 
 			prepareCommunication();
 			tradeKeys();
-			//ASSTEST();
 			generateSessionKey();
 			sendSessionKey();
 
@@ -87,10 +86,10 @@ public class ServerThread extends Thread{
 
 			String msg_rcv = new String(rcvMsg("AES"), "UTF-8");
 
-            if(msg_rcv == null) {
-                System.out.println("Message Error");
-                return;
-            }
+			if(msg_rcv == null) {
+				System.out.println("Message Error");
+				return;
+			}
 
 			String msg_sent = "NO";
 			String[] msg = msg_rcv.split(delim);
@@ -141,77 +140,20 @@ public class ServerThread extends Thread{
 		input = new DataInputStream(socket.getInputStream());
 		output = new DataOutputStream (socket.getOutputStream());
 		System.out.println("Channels Created!");	
-
-
-		/*try {
-			System.out.println("Getting Public Key from folder");
-
-			// Read Public Key.
-			File filePublicKey = new File("ServerDir/pubkey");
-			FileInputStream fis = new FileInputStream("ServerDir/pubkey");
-			byte[] encodedPublicKey = new byte[(int) filePublicKey.length()];
-			fis.read(encodedPublicKey);
-			fis.close();
-
-			System.out.println("Getting Private Key from folder");
-			// Read Private Key.
-			File filePrivateKey = new File("ServerDir/privkey");
-			fis = new FileInputStream("ServerDir/privkey");
-			byte[] encodedPrivateKey = new byte[(int) filePrivateKey.length()];
-			fis.read(encodedPrivateKey);
-			fis.close();
-
-			// Generate KeyPair.
-			KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-			X509EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(
-					encodedPublicKey);
-			server_pubkey = keyFactory.generatePublic(publicKeySpec);
-
-			PKCS8EncodedKeySpec privateKeySpec = new PKCS8EncodedKeySpec(
-					encodedPrivateKey);
-			server_privkey = keyFactory.generatePrivate(privateKeySpec);
-
-		} catch (NoSuchAlgorithmException | InvalidKeySpecException e1) {
-			// TODO Auto-generated catch block
-			e1.printStackTrace();
-		}*/
 	}
 
 	private void tradeKeys() {
 		try {
 			System.out.println("Receiving Public Key from Client");
-			
+
 			//Receive encoded key
-			/*byte[] aux = new byte[1024 * 16];
-			int count = input.read(aux);
-			byte[] encoded_clipub = Arrays.copyOfRange(aux, 0, count);*/
 			byte[] encoded_clipub = new byte[input.readInt()];
 			input.readFully(encoded_clipub);
-			
+
 			System.out.println("Key Received: ");
 			System.out.println(new String(encoded_clipub, "UTF-8"));
 			System.out.println("Size: " + encoded_clipub.length);
-			
-			//Decode base64
-			/*byte[] cli_pub = Base64.decode(encoded_clipub, Base64.DEFAULT);
-			System.out.println("Key Decoded: ");
-			System.out.println(new String(cli_pub, "UTF-8"));*/
-			
-			//save key to file
-			/*FileOutputStream fos = new FileOutputStream("ServerDir/" + Thread.currentThread().getId() + "_pubkey");
-			fos.write(encoded_clipub, 0, encoded_clipub.length);
-			fos.close();
-			System.out.println("Key Saved!");*/
 
-			//retrieve key from file
-			/*File filePublicKey = new File("ServerDir/" + Thread.currentThread().getId() + "_pubkey");
-			FileInputStream fis = new FileInputStream("ServerDir/" + Thread.currentThread().getId() + "_pubkey");
-			byte[] encoded_pubkey = new byte[(int) filePublicKey.length()];
-			fis.read(encoded_pubkey);
-			fis.close();
-			System.out.println("Key Retrieved: ");
-			System.out.println(new String(encoded_pubkey, "UTF-8"));*/
-			
 			//convert bytes into key
 			KeyFactory keyFactory = KeyFactory.getInstance("RSA");
 			X509EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(encoded_clipub);
@@ -219,14 +161,7 @@ public class ServerThread extends Thread{
 			System.out.println("Key Converted!");
 			System.out.println(new String(cli_pubkey.getEncoded(), "UTF-8"));
 
-			//get server public key from file
-			/*fis = new FileInputStream("ServerDir/pubkey");
-			byte[] server_encodedpubkey = new byte[fis.available()];
-			fis.read(server_encodedpubkey);
-			fis.close();
-			System.out.println("Server Key Retrieved from file: ");
-			System.out.println(new String(server_encodedpubkey, "UTF-8"));*/
-			
+			//Send key
 			output.writeInt(server_pubkey.getEncoded().length);
 			output.write(server_pubkey.getEncoded());
 			output.flush();
@@ -237,16 +172,7 @@ public class ServerThread extends Thread{
 		}
 	}
 
-	private void ASSTEST() {
-		try {
-			rcvMsg("RSA");
-			String msg = "TENOUTTATEN";
-			sendMsg(msg.getBytes("UTF-8"), "RSA");			
-		} catch (UnsupportedEncodingException e) {
-			System.out.println("NO ASS");
-		}
-	}
-	
+
 	private void generateSessionKey() {
 		try {
 			//generate key and IV
@@ -281,13 +207,11 @@ public class ServerThread extends Thread{
 			System.out.println("Session Key: " + new String(sk.getEncoded(), "UTF-8"));
 
 			msg = null;
-			//while(msg == null) {
 			msg = rcvMsg("AES");
-            if(msg == null) {
-                System.out.println("Message Error");
-                return;
-            }
-			//}
+			if(msg == null) {
+				System.out.println("Message Error");
+				return;
+			}
 			String response = new String(msg, "UTF-8");
 
 			if(!response.equals("OK")) {
@@ -404,7 +328,8 @@ public class ServerThread extends Thread{
 					result = true;
 				} else  {
 					System.out.println("Beacon already registered, checking password...");
-					if(beaconHashMap.get(msg[2]).equals(msg[3])) {
+					String hashedPass = hashPasswordSHA512(msg[3], msg[2]); //hashes password using username as salt
+					if(beaconHashMap.get(msg[2]).equals(hashedPass)) {
 						System.out.println("Beacon logged in!");
 						clientID = msg[2];
 						msg_sent = "OK";
@@ -432,15 +357,19 @@ public class ServerThread extends Thread{
 			System.out.println("Listening to Beacon...");
 
 			while(true) {
-                byte[] rcvd_msg = rcvMsg("AES");
-                if(rcvd_msg == null) continue;
+				byte[] rcvd_msg = rcvMsg("AES");
+				if(rcvd_msg == null) break;
 
-				String[] msg = (new String(rcvd_msg, "UTF-8")).split(delim);
+				//String[] msg = (new String(rcvd_msg, "UTF-8")).split(delim);
 
-				switch(msg[0]) {
+				switch(new String(rcvd_msg, "UTF-8")) {
 
 				case "COORDS":
 					//System.out.println("beacon sent " + msg[1] + " " + msg[2] + " coordinates");
+					byte[] _coords = rcvMsg("AES");
+					byte[] _iv = rcvMsg("AES");
+					System.out.println("iv size: " + _iv.length);
+					
 					sendMsg("RECEIVED".getBytes("UTF-8"),"AES");
 
 					//create directory to store coords
@@ -449,21 +378,25 @@ public class ServerThread extends Thread{
 						directory.mkdir();
 
 					//new file if one doesn't already exist
-					File newFile = new File("Coordinates" + File.separator + clientID + ".txt");
+					File newFile = new File("Coordinates" + File.separator + "coords" + clientID + ".txt");
 					newFile.createNewFile();
-
-					//write to file
-					FileWriter fw = new FileWriter(newFile.getAbsoluteFile());
-					BufferedWriter bw = new BufferedWriter(fw);
-					bw.write(msg[1] + " " + msg[2]);
-					bw.close();
+					FileOutputStream fos = new FileOutputStream(newFile);
+					fos.write(_coords);
+					fos.close();
+					
+					//new file if one doesn't already exist
+					newFile = new File("Coordinates" + File.separator + "iv" + clientID + ".txt");
+					newFile.createNewFile();
+					fos = new FileOutputStream(newFile);
+					fos.write(_iv);
+					fos.close();
 					break;
 
 				default:
 					break;
 				}
-
-			}	
+			}
+			System.out.println(" Ended Connection with Beacon " + clientID);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -477,8 +410,8 @@ public class ServerThread extends Thread{
 			while(true) {
 
 				System.out.println("Listening to App...");
-                byte[] rcvd_msg = rcvMsg("AES");
-                if(rcvd_msg == null) continue;
+				byte[] rcvd_msg = rcvMsg("AES");
+				if(rcvd_msg == null) break;
 
 				String msg_rcv = new String(rcvd_msg, "UTF-8");
 				//String msg_rcv = input.readLine();
@@ -569,11 +502,39 @@ public class ServerThread extends Thread{
 					if( (beacons != null) && (beacons.contains(msg[1])) ){
 						//beacon was added
 						//read from file 
-						byte[] encoded = Files.readAllBytes(Paths.get("Coordinates"+ File.separator + msg[1] + ".txt"));
-						msg_sent = new String(encoded);
+						/*String aux;
+						byte[] encoded = Files.readAllBytes(Paths.get("Coordinates"+ File.separator +"coords" + msg[1] + ".txt"));
+						aux= new String(encoded, "UTF-8");
+						sendMsg(aux.getBytes("UTF-8"), "AES");
+						
+						byte[] iv = Files.readAllBytes(Paths.get("Coordinates"+ File.separator +"iv" + msg[1] + ".txt"));
+						
+						aux= new String(encoded, "UTF-8");
+						sendMsg(aux.getBytes("UTF-8"), "AES");
+						System.out.println("iv size: " + aux.getBytes("UTF-8").length);*/
+						
+						
+						File file = new File("Coordinates"+ File.separator +"coords" + msg[1] + ".txt");
+						FileInputStream fis = new FileInputStream(file);
+						byte[] _coords = new byte[fis.available()];
+						fis.read(_coords);
+						fis.close();
+						
+						
+						file = new File("Coordinates"+ File.separator +"iv" + msg[1] + ".txt");
+						fis = new FileInputStream(file);
+						byte[] _iv = new byte[fis.available()];
+						fis.read(_iv);
+						fis.close();
+						
+						System.out.println("iv size: " + _iv.length);
+						
+						sendMsg(_coords,"AES");
+						sendMsg(_iv,"AES");
+						break;
 					}
 					//output.writeBytes(msg_sent + '\n');
-					sendMsg(msg_sent.getBytes(), "AES");
+					sendMsg(msg_sent.getBytes("UTF-8"), "AES");
 					break;
 
 				default:
@@ -582,37 +543,38 @@ public class ServerThread extends Thread{
 					break;
 				}
 			}	
+			System.out.println("Connection with Client " + clientID +" Closed!");
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
 	}
 
 	//#################################CIPHER OPERATIONS#############################################
-    
-    private byte[] generateMac (byte[] msg) {
-        byte[] mac_data = null;
-        try {
-            Mac sha512Mac = Mac.getInstance("HmacSHA512");
-            sha512Mac.init(sk);
-            mac_data = sha512Mac.doFinal(msg);
-            System.out.println("-----HMAC Length----- " + mac_data.length);
-        } catch (NoSuchAlgorithmException | InvalidKeyException e) {
-        }
 
-        return mac_data;
-    }
+	private byte[] generateMac (byte[] msg) {
+		byte[] mac_data = null;
+		try {
+			Mac sha512Mac = Mac.getInstance("HmacSHA512");
+			sha512Mac.init(sk);
+			mac_data = sha512Mac.doFinal(msg);
+			System.out.println("-----HMAC Length----- " + mac_data.length);
+		} catch (NoSuchAlgorithmException | InvalidKeyException e) {
+		}
+
+		return mac_data;
+	}
 
 	private void sendMsg(byte[] msg, String type) {
 		//TODO: Add counter, signature, SALT(?), etc...
 		try {
 			byte[] send_msg = encrypt(msg, type);
-            if(type.equals("AES")) {
-                byte[] hmac = generateMac(send_msg);
-                output.write(hmac);
-            } 
+			if(type.equals("AES")) {
+				byte[] hmac = generateMac(send_msg);
+				output.write(hmac);
+			} 
 			output.writeInt(send_msg.length);
 			output.write(send_msg);
-			
+
 			System.out.println("ORIGINAL: ");
 			System.out.println( new String(msg, "UTF-8"));
 			System.out.println("ENCRYPTED: ");
@@ -626,20 +588,20 @@ public class ServerThread extends Thread{
 		byte[] msg = null;
 		//TODO: confirm counter, signature and isolate the message
 		try {
-            byte[] rcvd_hmac = null;
-            if(type.equals("AES")) {
-                rcvd_hmac = new byte[64];
-                input.read(rcvd_hmac, 0, 64);
-            }
+			byte[] rcvd_hmac = null;
+			if(type.equals("AES")) {
+				rcvd_hmac = new byte[64];
+				input.read(rcvd_hmac, 0, 64);
+			}
 			byte[] rcvd_msg = new byte[input.readInt()];
 			input.readFully(rcvd_msg);
-            if(type.equals("AES")) {
-                byte[] hmac = generateMac(rcvd_msg);
-                if(!Arrays.equals(hmac, rcvd_hmac))
-                    return null;
-            }
+			if(type.equals("AES")) {
+				byte[] hmac = generateMac(rcvd_msg);
+				if(!Arrays.equals(hmac, rcvd_hmac))
+					return null;
+			}
 			msg = decrypt(rcvd_msg, type);
-			
+
 			System.out.println("RECEIVED: ");
 			System.out.println(new String(rcvd_msg, "UTF-8"));
 			System.out.println("DECRYPTED: ");

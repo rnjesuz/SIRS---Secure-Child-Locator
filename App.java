@@ -75,6 +75,7 @@ public class App {
 	private static void authorizedCycle(){
 		
 		while(true){
+			
 			System.out.println("Select the option number:");
 			System.out.println("(1) Add Beacon");
 			System.out.println("(2) List Beacons");

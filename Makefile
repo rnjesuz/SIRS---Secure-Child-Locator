@@ -7,6 +7,7 @@ JC = javac
 CLASSES = \
         ServerThread.java \
         Server.java \
+		Client.java \
 		App.java \
 		Beacon.java \
 		PuppetMaster.java
